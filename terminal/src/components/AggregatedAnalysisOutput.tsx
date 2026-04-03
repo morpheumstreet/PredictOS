@@ -1,4 +1,3 @@
-"use client";
 
 import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Layers, Users, CheckCircle2, AlertCircle } from "lucide-react";

@@ -1,23 +1,15 @@
-"use client";
-
 import { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { 
   BarChart3, 
-  Copy, 
   ChevronLeft,
   ChevronRight,
   Bot,
-  Blocks,
   Globe,
-  Wand2,
-  Fish,
   ArrowLeftRight,
-  Coins,
-  TrendingUp,
-  Eye
+  Eye,
+  ScanSearch,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -25,16 +17,11 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: "analysis", label: "Predict Super Intelligence", icon: BarChart3, available: true, href: "/market-analysis" },
-  { id: "arbitrage", label: "Arbitrage Intelligence", icon: ArrowLeftRight, available: true, href: "/arbitrage" },
-  { id: "betting-bots", label: "Betting Bots", icon: Bot, available: true, href: "/betting-bots" },
-  { id: "wallet-tracking", label: "Wallet Tracking", icon: Eye, available: true, href: "/wallet-tracking" },
-  { id: "no-code-builder", label: "No Code Builder", icon: Wand2, available: false },
-  { id: "whale-tracking", label: "Whale Tracking", icon: Fish, available: false },
-  { id: "copytrading", label: "Copytrading", icon: Copy, available: false },
-  { id: "perps", label: "Perps Trading / Leverage", icon: TrendingUp, available: false },
-  { id: "staking", label: "$Predict Staking", icon: Coins, available: false },
-  { id: "sdk", label: "Predict Protocol SDK", icon: Blocks, available: false },
+  { id: "analysis", label: "Predict Super Intelligence", icon: BarChart3, href: "/market-analysis" },
+  { id: "arbitrage", label: "Arbitrage Intelligence", icon: ArrowLeftRight, href: "/arbitrage" },
+  { id: "betting-bots", label: "Betting Bots", icon: Bot, href: "/betting-bots" },
+  { id: "wallet-tracking", label: "Wallet Tracking", icon: Eye, href: "/wallet-tracking" },
+  { id: "event-scanner", label: "Event Scanner", icon: ScanSearch, href: "/event-scanner" },
 ];
 
 export function Sidebar({ activeTab }: SidebarProps) {
@@ -49,14 +36,14 @@ export function Sidebar({ activeTab }: SidebarProps) {
     >
       {/* Logo */}
       <div className="p-4 border-b border-border/50 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3 group">
+        <Link to="/market-analysis" className="flex items-center gap-3 group">
           <div className="relative">
             <div className="w-10 h-10 rounded-full border-2 border-primary glow-primary flex items-center justify-center bg-primary/10 overflow-hidden shrink-0">
-              <Image 
-                src="/logo.jpg" 
-                alt="PredictOS Logo" 
-                width={40} 
-                height={40} 
+              <img
+                src="/logo.jpg"
+                alt="PredictOS Logo"
+                width={40}
+                height={40}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -92,42 +79,25 @@ export function Sidebar({ activeTab }: SidebarProps) {
             <>
               <item.icon className={cn(
                 "w-5 h-5 shrink-0",
-                activeTab === item.id && item.available && "text-primary",
-                !item.available && "opacity-40"
+                activeTab === item.id && "text-primary",
               )} />
               {!collapsed && (
-                <div className="flex items-center gap-2 flex-1">
-                  <span className={cn("text-sm font-medium truncate", !item.available && "opacity-40")}>{item.label}</span>
-                  {!item.available && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/30 text-destructive border border-destructive font-mono uppercase font-bold">
-                      Soon
-                    </span>
-                  )}
-                </div>
+                <span className="text-sm font-medium truncate flex-1">{item.label}</span>
               )}
             </>
           );
 
           const className = cn(
-            "w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200",
-            item.available ? "hover:bg-secondary/50 cursor-pointer" : "cursor-not-allowed",
-            activeTab === item.id && item.available
+            "w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 hover:bg-secondary/50 cursor-pointer",
+            activeTab === item.id
               ? "bg-primary/10 terminal-border-glow text-primary" 
               : "text-muted-foreground hover:text-foreground"
           );
 
-          if (item.available && item.href) {
-            return (
-              <Link key={item.id} href={item.href} className={className}>
-                {content}
-              </Link>
-            );
-          }
-
           return (
-            <div key={item.id} className={className}>
+            <Link key={item.id} to={item.href} className={className}>
               {content}
-            </div>
+            </Link>
           );
         })}
       </nav>
@@ -147,11 +117,11 @@ export function Sidebar({ activeTab }: SidebarProps) {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-all group"
               >
-                <Image 
-                  src="/Dflow_logo.png" 
-                  alt="DFlow" 
-                  width={16} 
-                  height={16} 
+                <img
+                  src="/Dflow_logo.png"
+                  alt="DFlow"
+                  width={16}
+                  height={16}
                   className="rounded-sm"
                 />
                 <span className="text-[10px] font-semibold text-indigo-400 group-hover:text-indigo-300">
@@ -166,10 +136,10 @@ export function Sidebar({ activeTab }: SidebarProps) {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all group"
               >
-                <Image 
-                  src="/dome-icon-light.svg" 
-                  alt="Dome" 
-                  width={16} 
+                <img
+                  src="/dome-icon-light.svg"
+                  alt="Dome"
+                  width={16}
                   height={16}
                 />
                 <span className="text-[10px] font-semibold text-emerald-400 group-hover:text-emerald-300">
@@ -187,11 +157,11 @@ export function Sidebar({ activeTab }: SidebarProps) {
               className="w-8 h-8 rounded-md bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-all flex items-center justify-center"
               title="DFlow"
             >
-              <Image 
-                src="/Dflow_logo.png" 
-                alt="DFlow" 
-                width={18} 
-                height={18} 
+              <img
+                src="/Dflow_logo.png"
+                alt="DFlow"
+                width={18}
+                height={18}
                 className="rounded-sm"
               />
             </a>
@@ -202,10 +172,10 @@ export function Sidebar({ activeTab }: SidebarProps) {
               className="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all flex items-center justify-center"
               title="Dome"
             >
-              <Image 
-                src="/dome-icon-light.svg" 
-                alt="Dome" 
-                width={18} 
+              <img
+                src="/dome-icon-light.svg"
+                alt="Dome"
+                width={18}
                 height={18}
               />
             </a>

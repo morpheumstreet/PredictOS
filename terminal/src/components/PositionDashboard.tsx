@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, Shield, AlertTriangle, Loader2, DollarSign } from "lucide-react";

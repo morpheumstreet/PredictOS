@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useMemo } from "react";
 import {
   Link2,
@@ -18,7 +16,6 @@ import {
   Target,
   Shield,
 } from "lucide-react";
-import Image from "next/image";
 import type { ArbitrageResponse, ArbitrageAnalysis, ArbitrageMarketData } from "@/types/arbitrage";
 
 // Model types
@@ -106,7 +103,7 @@ const ArbitrageTerminal = () => {
   const renderMarketCard = (market: ArbitrageMarketData, label: string) => (
     <div className="bg-secondary/30 rounded-lg p-4 terminal-border">
       <div className="flex items-center gap-2 mb-3">
-        <Image
+        <img
           src={market.source === 'polymarket' ? '/polyfacts.svg' : '/okbet.svg'}
           alt={market.source}
           width={20}
@@ -199,7 +196,7 @@ const ArbitrageTerminal = () => {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 hover:bg-indigo-500/30 hover:border-indigo-500/50 transition-all"
                       >
-                        <Image 
+                        <img 
                           src="/Dflow_logo.png" 
                           alt="DFlow" 
                           width={12} 
@@ -218,7 +215,7 @@ const ArbitrageTerminal = () => {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 hover:border-emerald-500/50 transition-all"
                       >
-                        <Image 
+                        <img 
                           src="/dome-icon-light.svg" 
                           alt="Dome" 
                           width={12} 

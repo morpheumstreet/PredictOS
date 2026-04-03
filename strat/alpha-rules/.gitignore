@@ -1,0 +1,7 @@
+*.sqlite
+*.sqlite-journal
+__pycache__/
+.venv/
+data/
+logs/
+config/external_truth_sources.json

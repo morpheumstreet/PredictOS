@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Link2, 
@@ -27,7 +25,6 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import Image from "next/image";
 import type { 
   AgentConfig, 
   AggregatorConfig, 
@@ -1540,7 +1537,7 @@ const AgenticMarketAnalysis = () => {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-all group"
               >
-                <Image 
+                <img 
                   src="/Dflow_logo.png" 
                   alt="DFlow" 
                   width={16} 
@@ -1557,7 +1554,7 @@ const AgenticMarketAnalysis = () => {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all group"
               >
-                <Image 
+                <img 
                   src="/dome-icon-light.svg" 
                   alt="Dome" 
                   width={16} 
@@ -1622,7 +1619,7 @@ const AgenticMarketAnalysis = () => {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 hover:bg-indigo-500/30 hover:border-indigo-500/50 transition-all"
                   >
-                    <Image 
+                    <img 
                       src="/Dflow_logo.png" 
                       alt="DFlow" 
                       width={12} 
@@ -1642,7 +1639,7 @@ const AgenticMarketAnalysis = () => {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 hover:border-emerald-500/50 transition-all"
                   >
-                    <Image 
+                    <img 
                       src="/dome-icon-light.svg" 
                       alt="Dome" 
                       width={12} 
@@ -1903,7 +1900,7 @@ const AgenticMarketAnalysis = () => {
                         {isAnalysisComplete && getOkBetLink ? (
                           <CheckCircle2 className="w-4 h-4 text-amber-400" />
                         ) : (
-                          <Image 
+                          <img 
                             src="/okbet.svg" 
                             alt="OkBet" 
                             width={14} 
@@ -2298,7 +2295,7 @@ const AgenticMarketAnalysis = () => {
                       <div className="flex items-center gap-3">
                         <div className={`relative ${isAnalysisComplete && getOkBetLink ? 'animate-bounce' : ''}`}
                              style={{ animationDuration: '2s' }}>
-                          <Image 
+                          <img 
                             src="/okbet.svg" 
                             alt="OkBet" 
                             width={20} 

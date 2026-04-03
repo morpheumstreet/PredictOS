@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Square, ChevronDown, Bot, Percent, DollarSign, AlertTriangle, Loader2 } from "lucide-react";

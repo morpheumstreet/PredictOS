@@ -1,0 +1,13 @@
+{
+  "by_event_id": {
+    "16167": [
+      "https://www.sec.gov/edgar/search/",
+      "https://www.blockchain.com/explorer"
+    ]
+  },
+  "by_slug": {
+    "example-event-slug": [
+      "https://example.com/official-results"
+    ]
+  }
+}

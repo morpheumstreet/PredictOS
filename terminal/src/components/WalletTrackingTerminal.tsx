@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Square, Eye, AlertTriangle } from "lucide-react";
