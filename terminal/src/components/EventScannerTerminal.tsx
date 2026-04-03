@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, AlertTriangle, Database, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, Database, RefreshCw, Clock } from "lucide-react";
 import type {
   AlphaRulesSummary,
   AlphaRulesEventRow,
@@ -13,6 +13,53 @@ function fmtNum(n: number | null | undefined): string {
   return n.toFixed(0);
 }
 
+/** Next collector boundary: UTC wall slots when period divides 60 (cron-style); otherwise epoch-aligned steps. */
+function nextScheduledScanUtc(from: Date, periodMinutes: number): Date {
+  const period = Math.max(1, Math.min(1440, Math.floor(periodMinutes)));
+  const fromMs = from.getTime();
+  const stepMs = period * 60_000;
+  if (period <= 60 && 60 % period === 0) {
+    const dayStart = Date.UTC(
+      from.getUTCFullYear(),
+      from.getUTCMonth(),
+      from.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const msInDay = fromMs - dayStart;
+    let candidate = dayStart + Math.floor(msInDay / stepMs) * stepMs + stepMs;
+    if (candidate <= fromMs) candidate += stepMs;
+    if (candidate >= dayStart + 86_400_000) {
+      return new Date(dayStart + 86_400_000);
+    }
+    return new Date(candidate);
+  }
+  let t = Math.floor(fromMs / stepMs) * stepMs;
+  if (t <= fromMs) t += stepMs;
+  return new Date(t);
+}
+
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return "0s";
+  const s = Math.ceil(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+const utcTimeFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
 export default function EventScannerTerminal() {
   const [summary, setSummary] = useState<AlphaRulesSummary | null>(null);
   const [events, setEvents] = useState<AlphaRulesEventRow[]>([]);
@@ -20,6 +67,12 @@ export default function EventScannerTerminal() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const loadDb = async () => {
     setDbLoading(true);
@@ -66,6 +119,13 @@ export default function EventScannerTerminal() {
     void loadDb();
   }, []);
 
+  const scanIntervalMinutes = summary?.scanIntervalMinutes ?? 30;
+  const nextScanAt = useMemo(
+    () => nextScheduledScanUtc(new Date(nowTick), scanIntervalMinutes),
+    [nowTick, scanIntervalMinutes]
+  );
+  const msUntilNext = nextScanAt.getTime() - nowTick;
+
   const filteredEvents = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return events;
@@ -105,6 +165,20 @@ export default function EventScannerTerminal() {
               <Database className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground font-display">ALPHA RULES DB</span>
             </div>
+            {!dbLoading && !dbError && summary?.counts && (
+              <div
+                className="flex items-center gap-2 text-xs font-mono text-muted-foreground order-last sm:order-none sm:flex-1 sm:justify-center"
+                title={`Assumes collector every ${scanIntervalMinutes} min (set ALPHA_RULES_SCAN_INTERVAL_MINUTES). Next slot UTC.`}
+              >
+                <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>
+                  <span className="text-foreground/90">Next scan</span>{" "}
+                  <span className="text-primary tabular-nums">{utcTimeFmt.format(nextScanAt)} UTC</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <span className="tabular-nums">{fmtCountdown(msUntilNext)}</span>
+                </span>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => void loadDb()}

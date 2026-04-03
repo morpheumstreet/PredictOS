@@ -3,6 +3,8 @@ export interface AlphaRulesSummary {
   path?: string;
   exists?: boolean;
   counts?: Record<string, number>;
+  /** Minutes between collector runs; matches ALPHA_RULES_SCAN_INTERVAL_MINUTES (default 30). */
+  scanIntervalMinutes?: number;
   lastScanRun?: {
     id: number;
     started_at: string;

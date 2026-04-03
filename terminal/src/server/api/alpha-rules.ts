@@ -13,6 +13,13 @@ function json(data: unknown, status = 200) {
   return Response.json(data, { status });
 }
 
+function scanIntervalMinutesFromEnv(): number {
+  const raw = process.env.ALPHA_RULES_SCAN_INTERVAL_MINUTES?.trim();
+  const n = raw ? parseInt(raw, 10) : NaN;
+  if (!Number.isFinite(n)) return 30;
+  return Math.min(1440, Math.max(1, n));
+}
+
 /**
  * GET /api/alpha-rules
  * - No `table`: { success, path, exists, counts }
@@ -55,6 +62,7 @@ export async function GET(request: Request): Promise<Response> {
         path: dbPath,
         exists: true,
         counts,
+        scanIntervalMinutes: scanIntervalMinutesFromEnv(),
         lastScanRun: lastRun ?? null,
       });
     }
