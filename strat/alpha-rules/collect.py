@@ -12,6 +12,8 @@ Usage:
   python3 collect.py
   python3 collect.py --sources-config config/external_truth_sources.json
   bash cron/scan.sh
+
+All data goes to a single DB: strat/alpha-rules/data/alpha_rules.sqlite
 """
 
 from __future__ import annotations
@@ -30,6 +32,11 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
+
+
+def catalog_db_path() -> str:
+    """Single SQLite file for this module (alongside collect.py)."""
+    return str(Path(__file__).resolve().parent / "data" / "alpha_rules.sqlite")
 
 
 def utc_now_iso() -> str:
@@ -624,11 +631,6 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description="Gamma events → SQLite (rules, external truth URLs, profit flag, cron-ready).",
     )
-    p.add_argument(
-        "--db",
-        default="data/polymarket_events.sqlite",
-        help="SQLite database path (default: data/polymarket_events.sqlite)",
-    )
     p.add_argument("--limit", type=int, default=100, help="Page size for /events (default: 100).")
     p.add_argument(
         "--max-events",
@@ -659,13 +661,12 @@ def main() -> int:
     )
     args = p.parse_args()
 
-    import os
+    db_path = catalog_db_path()
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    os.makedirs(os.path.dirname(os.path.abspath(args.db)) or ".", exist_ok=True)
-
-    print(f"Collecting into {args.db} …", file=sys.stderr)
+    print(f"Collecting into {db_path} …", file=sys.stderr)
     run_collect(
-        args.db,
+        db_path,
         page_limit=max(1, args.limit),
         max_events=args.max_events,
         sleep_s=max(0.0, args.sleep),

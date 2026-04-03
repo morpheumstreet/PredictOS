@@ -1,6 +1,9 @@
 import { handleApi } from "@/server/handle-api";
 
-const isProd = process.env.NODE_ENV === "production";
+// HTTP API includes read-only SQLite at GET /api/alpha-rules (strat/alpha-rules/data/alpha_rules.sqlite).
+// Optional: ALPHA_RULES_DB=/absolute/path/to/alpha_rules.sqlite
+
+const isProd = process.env.BUN_ENV === "production";
 const rootDir = isProd ? "dist" : "public";
 const port = Number(process.env.PORT) || 3000;
 

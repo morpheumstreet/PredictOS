@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export BROWSERSLIST_IGNORE_OLD_DATA=1
 mkdir -p public/assets
 bun x --bun tailwindcss -i ./src/globals.css -o ./public/assets/styles.css
 bun build ./src/client/main.tsx --outdir=./public/assets --target=browser --sourcemap=external

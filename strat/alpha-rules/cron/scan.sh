@@ -13,10 +13,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-DB_PATH="${POLYMARKET_SQLITE:-$ROOT/data/polymarket_events.sqlite}"
 SOURCES_CFG="${EXTERNAL_TRUTH_SOURCES_JSON:-$ROOT/config/external_truth_sources.json}"
 LOG_DIR="$ROOT/logs"
-mkdir -p "$LOG_DIR" "$(dirname "$DB_PATH")"
+mkdir -p "$LOG_DIR" "$ROOT/data"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_FILE="$LOG_DIR/collect-${TS}.log"
@@ -28,9 +27,9 @@ fi
 
 {
   echo "=== collect start ${TS} ==="
-  echo "db=${DB_PATH}"
+  echo "db=${ROOT}/data/alpha_rules.sqlite"
   echo "sources_config=${SOURCES_CFG}"
-  python3 "$ROOT/collect.py" --db "$DB_PATH" "${EXTRA[@]}"
+  python3 "$ROOT/collect.py" "${EXTRA[@]}"
   echo "=== collect end $(date -u +%Y%m%dT%H%M%SZ) ==="
 } >>"$LOG_FILE" 2>&1
 
