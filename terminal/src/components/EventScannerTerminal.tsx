@@ -1,10 +1,20 @@
-import { useState, useEffect, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type UIEvent,
+} from "react";
 import { Loader2, AlertTriangle, Database, RefreshCw, Clock } from "lucide-react";
 import type {
   AlphaRulesSummary,
   AlphaRulesEventRow,
-  AlphaRulesEventsAllResponse,
+  AlphaRulesEventsPageResponse,
 } from "@/types/alpha-rules";
+
+const EVENTS_PAGE_SIZE = 100;
+const SCROLL_LOAD_THRESHOLD_PX = 100;
 
 function fmtNum(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -63,9 +73,15 @@ const utcTimeFmt = new Intl.DateTimeFormat("en-GB", {
 export default function EventScannerTerminal() {
   const [summary, setSummary] = useState<AlphaRulesSummary | null>(null);
   const [events, setEvents] = useState<AlphaRulesEventRow[]>([]);
-  const [eventsMeta, setEventsMeta] = useState<{ total: number; truncated: boolean } | null>(null);
+  const [eventsTotal, setEventsTotal] = useState(0);
+  const [eventsLoadingMore, setEventsLoadingMore] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+  const loadMoreInFlight = useRef(false);
+  const eventsRef = useRef<AlphaRulesEventRow[]>([]);
+  const eventsTotalRef = useRef(0);
+  eventsRef.current = events;
+  eventsTotalRef.current = eventsTotal;
   const [filter, setFilter] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -77,17 +93,20 @@ export default function EventScannerTerminal() {
   const loadDb = async () => {
     setDbLoading(true);
     setDbError(null);
+    loadMoreInFlight.current = false;
     try {
       const [sumRes, evRes] = await Promise.all([
         fetch("/api/alpha-rules"),
-        fetch("/api/alpha-rules?table=events&all=1"),
+        fetch(
+          `/api/alpha-rules?table=events&limit=${EVENTS_PAGE_SIZE}&offset=0`
+        ),
       ]);
 
       const sumJson = (await sumRes.json()) as AlphaRulesSummary;
       if (!sumRes.ok || !sumJson.success) {
         setSummary(null);
         setEvents([]);
-        setEventsMeta(null);
+        setEventsTotal(0);
         setDbError(
           sumJson.error ||
             sumJson.hint ||
@@ -97,23 +116,65 @@ export default function EventScannerTerminal() {
       }
       setSummary(sumJson);
 
-      const evJson = (await evRes.json()) as AlphaRulesEventsAllResponse;
+      const evJson = (await evRes.json()) as AlphaRulesEventsPageResponse;
       if (!evRes.ok || !evJson.success || !Array.isArray(evJson.rows)) {
         setEvents([]);
-        setEventsMeta(null);
+        setEventsTotal(0);
         setDbError(evJson.error || "Failed to load events");
         return;
       }
       setEvents(evJson.rows as AlphaRulesEventRow[]);
-      setEventsMeta({ total: evJson.total, truncated: evJson.truncated });
+      setEventsTotal(
+        typeof evJson.total === "number" ? evJson.total : evJson.rows.length
+      );
     } catch (e) {
       setDbError(e instanceof Error ? e.message : "Request failed");
       setEvents([]);
-      setEventsMeta(null);
+      setEventsTotal(0);
     } finally {
       setDbLoading(false);
     }
   };
+
+  const loadMoreEvents = useCallback(async () => {
+    if (loadMoreInFlight.current) return;
+    const offset = eventsRef.current.length;
+    if (offset >= eventsTotalRef.current) return;
+
+    loadMoreInFlight.current = true;
+    setEventsLoadingMore(true);
+    try {
+      const r = await fetch(
+        `/api/alpha-rules?table=events&limit=${EVENTS_PAGE_SIZE}&offset=${offset}`
+      );
+      const j = (await r.json()) as AlphaRulesEventsPageResponse;
+      if (!r.ok || !j.success || !Array.isArray(j.rows)) return;
+      setEvents((prev) => {
+        const seen = new Set(prev.map((e) => e.id));
+        const extra = (j.rows as AlphaRulesEventRow[]).filter((row) => !seen.has(row.id));
+        return [...prev, ...extra];
+      });
+      if (typeof j.total === "number") {
+        setEventsTotal(j.total);
+      }
+    } finally {
+      loadMoreInFlight.current = false;
+      setEventsLoadingMore(false);
+    }
+  }, []);
+
+  const onEventsTableScroll = useCallback(
+    (e: UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      // Avoid treating "fits in view" as bottom (would page through the whole DB).
+      if (el.scrollHeight <= el.clientHeight + 1) return;
+      const nearBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_LOAD_THRESHOLD_PX;
+      if (!nearBottom) return;
+      void loadMoreEvents();
+    },
+    [loadMoreEvents]
+  );
 
   useEffect(() => {
     void loadDb();
@@ -215,10 +276,12 @@ export default function EventScannerTerminal() {
             {!dbLoading && !dbError && summary?.counts && (
               <div className="flex flex-wrap gap-3 text-xs font-mono text-muted-foreground">
                 <span>
-                  <span className="text-foreground font-semibold">{eventsMeta?.total ?? events.length}</span>{" "}
+                  <span className="text-foreground font-semibold">{eventsTotal || events.length}</span>{" "}
                   events
-                  {eventsMeta?.truncated ? (
-                    <span className="text-warning ml-1">(showing first 50k)</span>
+                  {events.length < eventsTotal ? (
+                    <span className="text-muted-foreground ml-1">
+                      ({events.length} loaded — scroll the table for more)
+                    </span>
                   ) : null}
                 </span>
                 <span>·</span>
@@ -253,7 +316,21 @@ export default function EventScannerTerminal() {
                 />
                 <p className="text-[11px] text-muted-foreground mt-1.5">
                   Showing {filteredEvents.length} of {events.length} loaded
+                  {eventsTotal > events.length
+                    ? ` — ${eventsTotal} total in DB; scroll the table to load more.`
+                    : ""}{" "}
+                  Filter applies to loaded rows only.
                 </p>
+                {eventsTotal > events.length && (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreEvents()}
+                    disabled={eventsLoadingMore}
+                    className="mt-2 text-[11px] font-mono px-2 py-1 rounded border border-border hover:border-primary/50 hover:bg-secondary/50 disabled:opacity-50 transition-colors"
+                  >
+                    {eventsLoadingMore ? "Loading…" : "Load more (next 100)"}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -261,7 +338,10 @@ export default function EventScannerTerminal() {
 
         {!dbLoading && !dbError && events.length > 0 && (
           <div className="border border-border rounded-lg bg-card/80 backdrop-blur-sm terminal-border overflow-hidden">
-            <div className="max-h-[min(70vh,42rem)] overflow-auto">
+            <div
+              className="max-h-[min(70vh,42rem)] overflow-auto"
+              onScroll={onEventsTableScroll}
+            >
               <table className="w-full text-left text-sm border-collapse">
                 <thead className="sticky top-0 z-[1] bg-card/95 backdrop-blur-sm border-b border-border">
                   <tr className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -318,6 +398,12 @@ export default function EventScannerTerminal() {
                   ))}
                 </tbody>
               </table>
+              {eventsLoadingMore && events.length < eventsTotal && (
+                <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground border-t border-border/40">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  Loading more events…
+                </div>
+              )}
             </div>
           </div>
         )}

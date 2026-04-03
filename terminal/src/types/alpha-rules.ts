@@ -47,3 +47,14 @@ export interface AlphaRulesEventsAllResponse {
   rows: AlphaRulesEventRow[];
   error?: string;
 }
+
+/** Paginated `GET /api/alpha-rules?table=events&limit=&offset=` */
+export interface AlphaRulesEventsPageResponse {
+  success: boolean;
+  table: string;
+  limit: number;
+  offset: number;
+  total: number;
+  rows: AlphaRulesEventRow[];
+  error?: string;
+}

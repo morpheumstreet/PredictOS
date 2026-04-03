@@ -29,7 +29,12 @@ fi
   echo "=== collect start ${TS} ==="
   echo "db=${ROOT}/data/alpha_rules.sqlite"
   echo "sources_config=${SOURCES_CFG}"
-  python3 "$ROOT/collect.py" "${EXTRA[@]}"
+  # With `set -u`, "${EXTRA[@]}" errors when the array is empty (no sources JSON).
+  if ((${#EXTRA[@]} > 0)); then
+    python3 "$ROOT/collect.py" "${EXTRA[@]}"
+  else
+    python3 "$ROOT/collect.py"
+  fi
   echo "=== collect end $(date -u +%Y%m%dT%H%M%SZ) ==="
 } >>"$LOG_FILE" 2>&1
 

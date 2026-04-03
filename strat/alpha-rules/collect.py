@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Fetch Polymarket Gamma `/events` (active, open), persist event + market rules
-and per-outcome prices (0–1 / 0–100) into SQLite.
+Fetch Polymarket Gamma `/events`, persist event + market rules and per-outcome
+prices (0–1 / 0–100) into SQLite.
+
+Only events that are still active, not closed (settled at event level), not
+archived, and not past their `endDate` (when present) are stored. Pagination
+uses the largest supported page size (500) by default to minimize round trips.
 
 Cron-friendly: optional scan_runs row, logs via shell redirection in cron/scan.sh.
 
 External truth URLs: optional JSON config merges into events.external_truth_source_urls
 (per-event manual edits in DB are kept unless the same event is listed in config).
+
+events.has_profit_opportunity is reserved (collect does not compute it; new rows default 0,
+existing values are left unchanged on upsert).
 
 Usage:
   python3 collect.py
@@ -108,6 +115,43 @@ def dedupe_preserve_order(urls: list[str]) -> list[str]:
 
 def clamp_price_0_1(x: float) -> float:
     return max(0.0, min(1.0, x))
+
+
+def parse_api_datetime_utc(raw: Any) -> datetime | None:
+    """Parse Gamma-style ISO timestamps (including trailing Z) to aware UTC."""
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def event_eligible_for_catalog(ev: dict[str, Any], *, now_utc: datetime) -> bool:
+    """
+    True if the event should be written to the catalog: tradable lifecycle,
+    not archived, and end time (if any) is still in the future.
+    """
+    if not ev.get("active"):
+        return False
+    if ev.get("closed"):
+        return False
+    if ev.get("archived"):
+        return False
+    end = parse_api_datetime_utc(ev.get("endDate"))
+    if end is not None and end <= now_utc:
+        return False
+    return True
 
 
 def init_db(conn: sqlite3.Connection) -> None:
@@ -268,13 +312,16 @@ def fetch_events_page(
     offset: int,
     active: bool,
     closed: bool,
+    archived: bool | None = False,
 ) -> list[dict[str, Any]]:
-    params = {
+    params: dict[str, str] = {
         "active": str(active).lower(),
         "closed": str(closed).lower(),
         "limit": str(limit),
         "offset": str(offset),
     }
+    if archived is not None:
+        params["archived"] = str(archived).lower()
     url = f"{GAMMA_BASE}/events?{urlencode(params)}"
     data = http_get_json(url, timeout=60)
     if not isinstance(data, list):
@@ -304,7 +351,6 @@ def upsert_event(
     event: dict[str, Any],
     fetched_at: str,
     external_truth_json: str | None,
-    preserve_profit_flag: bool,
 ) -> None:
     eid = str(event.get("id", ""))
     if not eid:
@@ -315,119 +361,53 @@ def upsert_event(
     if slug is not None:
         slug = str(slug)
 
-    if preserve_profit_flag:
-        conn.execute(
-            """
-            INSERT INTO events (
-                id, slug, ticker, title, description, resolution_source,
-                start_date, end_date, active, closed, volume, liquidity,
-                tags_json, updated_at_api, fetched_at,
-                external_truth_source_urls, has_profit_opportunity, last_scanned_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT has_profit_opportunity FROM events WHERE id = ?), 0), ?)
-            ON CONFLICT(id) DO UPDATE SET
-                slug = excluded.slug,
-                ticker = excluded.ticker,
-                title = excluded.title,
-                description = excluded.description,
-                resolution_source = excluded.resolution_source,
-                start_date = excluded.start_date,
-                end_date = excluded.end_date,
-                active = excluded.active,
-                closed = excluded.closed,
-                volume = excluded.volume,
-                liquidity = excluded.liquidity,
-                tags_json = excluded.tags_json,
-                updated_at_api = excluded.updated_at_api,
-                fetched_at = excluded.fetched_at,
-                external_truth_source_urls = excluded.external_truth_source_urls,
-                has_profit_opportunity = events.has_profit_opportunity,
-                last_scanned_at = excluded.last_scanned_at
-            """,
-            (
-                eid,
-                slug,
-                event.get("ticker"),
-                event.get("title"),
-                event.get("description"),
-                event.get("resolutionSource"),
-                event.get("startDate"),
-                event.get("endDate"),
-                1 if event.get("active") else 0,
-                1 if event.get("closed") else 0,
-                _float_or_none(event.get("volume")),
-                _float_or_none(event.get("liquidity")),
-                tags_json,
-                event.get("updatedAt"),
-                fetched_at,
-                external_truth_json,
-                eid,
-                fetched_at,
-            ),
-        )
-    else:
-        conn.execute(
-            """
-            INSERT INTO events (
-                id, slug, ticker, title, description, resolution_source,
-                start_date, end_date, active, closed, volume, liquidity,
-                tags_json, updated_at_api, fetched_at,
-                external_truth_source_urls, has_profit_opportunity, last_scanned_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                slug = excluded.slug,
-                ticker = excluded.ticker,
-                title = excluded.title,
-                description = excluded.description,
-                resolution_source = excluded.resolution_source,
-                start_date = excluded.start_date,
-                end_date = excluded.end_date,
-                active = excluded.active,
-                closed = excluded.closed,
-                volume = excluded.volume,
-                liquidity = excluded.liquidity,
-                tags_json = excluded.tags_json,
-                updated_at_api = excluded.updated_at_api,
-                fetched_at = excluded.fetched_at,
-                external_truth_source_urls = excluded.external_truth_source_urls,
-                last_scanned_at = excluded.last_scanned_at
-            """,
-            (
-                eid,
-                slug,
-                event.get("ticker"),
-                event.get("title"),
-                event.get("description"),
-                event.get("resolutionSource"),
-                event.get("startDate"),
-                event.get("endDate"),
-                1 if event.get("active") else 0,
-                1 if event.get("closed") else 0,
-                _float_or_none(event.get("volume")),
-                _float_or_none(event.get("liquidity")),
-                tags_json,
-                event.get("updatedAt"),
-                fetched_at,
-                external_truth_json,
-                fetched_at,
-            ),
-        )
-
-
-def recompute_event_profit_heuristic(conn: sqlite3.Connection, event_id: str) -> None:
-    """Set has_profit_opportunity if any open market has an outcome price away from 0/1 (research signal only)."""
-    row = conn.execute(
-        """
-        SELECT 1 FROM markets m
-        JOIN market_outcomes o ON o.market_id = m.id
-        WHERE m.event_id = ? AND m.closed = 0
-          AND o.price > 0.02 AND o.price < 0.98
-        LIMIT 1
-        """,
-        (event_id,),
-    ).fetchone()
     conn.execute(
-        "UPDATE events SET has_profit_opportunity = ? WHERE id = ?",
-        (1 if row else 0, event_id),
+        """
+        INSERT INTO events (
+            id, slug, ticker, title, description, resolution_source,
+            start_date, end_date, active, closed, volume, liquidity,
+            tags_json, updated_at_api, fetched_at,
+            external_truth_source_urls, has_profit_opportunity, last_scanned_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT has_profit_opportunity FROM events WHERE id = ?), 0), ?)
+        ON CONFLICT(id) DO UPDATE SET
+            slug = excluded.slug,
+            ticker = excluded.ticker,
+            title = excluded.title,
+            description = excluded.description,
+            resolution_source = excluded.resolution_source,
+            start_date = excluded.start_date,
+            end_date = excluded.end_date,
+            active = excluded.active,
+            closed = excluded.closed,
+            volume = excluded.volume,
+            liquidity = excluded.liquidity,
+            tags_json = excluded.tags_json,
+            updated_at_api = excluded.updated_at_api,
+            fetched_at = excluded.fetched_at,
+            external_truth_source_urls = excluded.external_truth_source_urls,
+            has_profit_opportunity = events.has_profit_opportunity,
+            last_scanned_at = excluded.last_scanned_at
+        """,
+        (
+            eid,
+            slug,
+            event.get("ticker"),
+            event.get("title"),
+            event.get("description"),
+            event.get("resolutionSource"),
+            event.get("startDate"),
+            event.get("endDate"),
+            1 if event.get("active") else 0,
+            1 if event.get("closed") else 0,
+            _float_or_none(event.get("volume")),
+            _float_or_none(event.get("liquidity")),
+            tags_json,
+            event.get("updatedAt"),
+            fetched_at,
+            external_truth_json,
+            eid,
+            fetched_at,
+        ),
     )
 
 
@@ -436,7 +416,6 @@ def store_event_bundle(
     event: dict[str, Any],
     fetched_at: str,
     sources_cfg: dict[str, Any],
-    preserve_profit_flag: bool,
 ) -> None:
     eid = str(event.get("id", ""))
     if not eid:
@@ -445,7 +424,7 @@ def store_event_bundle(
     slug_val = event.get("slug")
     slug = str(slug_val) if slug_val is not None else None
     ext_json = merge_external_truth_urls(conn, eid, slug, sources_cfg)
-    upsert_event(conn, event, fetched_at, ext_json, preserve_profit_flag)
+    upsert_event(conn, event, fetched_at, ext_json)
 
     markets = event.get("markets") or []
     if not isinstance(markets, list):
@@ -514,9 +493,6 @@ def store_event_bundle(
                 (mid, i, label, price, pct, fetched_at),
             )
 
-    if not preserve_profit_flag:
-        recompute_event_profit_heuristic(conn, eid)
-
 
 def _float_or_none(v: Any) -> float | None:
     if v is None:
@@ -567,10 +543,11 @@ def run_collect(
     max_events: int | None,
     sleep_s: float,
     sources_config_path: str | None,
-    preserve_profit_flag: bool,
     record_scan_run: bool,
 ) -> None:
     sources_cfg = load_sources_config(sources_config_path)
+    # Gamma returns at most 500 rows per request; larger limits break pagination.
+    api_page_limit = min(500, max(1, page_limit))
     conn = sqlite3.connect(db_path)
     run_id = 0
     total = 0
@@ -584,11 +561,13 @@ def run_collect(
         while True:
             if max_events is not None and total >= max_events:
                 break
+            now_utc = datetime.now(timezone.utc)
             batch = fetch_events_page(
-                limit=page_limit,
+                limit=api_page_limit,
                 offset=offset,
                 active=True,
                 closed=False,
+                archived=False,
             )
             if not batch:
                 break
@@ -596,13 +575,16 @@ def run_collect(
             for ev in batch:
                 if max_events is not None and total >= max_events:
                     break
-                if isinstance(ev, dict):
-                    store_event_bundle(conn, ev, fetched_at, sources_cfg, preserve_profit_flag)
-                    total += 1
+                if not isinstance(ev, dict):
+                    continue
+                if not event_eligible_for_catalog(ev, now_utc=now_utc):
+                    continue
+                store_event_bundle(conn, ev, fetched_at, sources_cfg)
+                total += 1
             conn.commit()
-            if len(batch) < page_limit:
+            if len(batch) < api_page_limit:
                 break
-            offset += page_limit
+            offset += api_page_limit
             if sleep_s > 0:
                 time.sleep(sleep_s)
 
@@ -629,9 +611,14 @@ def run_collect(
 
 def main() -> int:
     p = argparse.ArgumentParser(
-        description="Gamma events → SQLite (rules, external truth URLs, profit flag, cron-ready).",
+        description="Gamma events → SQLite (rules, external truth URLs, cron-ready).",
     )
-    p.add_argument("--limit", type=int, default=100, help="Page size for /events (default: 100).")
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=500,
+        help="Page size for /events (Gamma caps at 500; default: 500).",
+    )
     p.add_argument(
         "--max-events",
         type=int,
@@ -650,11 +637,6 @@ def main() -> int:
         help="JSON file with by_event_id / by_slug URL lists (see config/external_truth_sources.example.json).",
     )
     p.add_argument(
-        "--preserve-profit-flag",
-        action="store_true",
-        help="Do not recompute has_profit_opportunity; keep DB values (use for manual overrides).",
-    )
-    p.add_argument(
         "--no-scan-run",
         action="store_true",
         help="Do not insert a row into scan_runs (default: record each run).",
@@ -667,11 +649,10 @@ def main() -> int:
     print(f"Collecting into {db_path} …", file=sys.stderr)
     run_collect(
         db_path,
-        page_limit=max(1, args.limit),
+        page_limit=args.limit,
         max_events=args.max_events,
         sleep_s=max(0.0, args.sleep),
         sources_config_path=args.sources_config,
-        preserve_profit_flag=bool(args.preserve_profit_flag),
         record_scan_run=not args.no_scan_run,
     )
     print(

@@ -23,7 +23,7 @@ function scanIntervalMinutesFromEnv(): number {
 /**
  * GET /api/alpha-rules
  * - No `table`: { success, path, exists, counts }
- * - `?table=events&limit=50&offset=0`: { success, table, rows, limit, offset }
+ * - `?table=events&limit=50&offset=0`: { success, table, rows, limit, offset, total }
  */
 export async function GET(request: Request): Promise<Response> {
   const dbPath = getAlphaRulesDbPath();
@@ -104,6 +104,25 @@ export async function GET(request: Request): Promise<Response> {
     const limit = Number.isFinite(parsedLimit) ? Math.min(500, Math.max(1, parsedLimit)) : 50;
     const parsedOffset = parseInt(url.searchParams.get("offset") ?? "", 10);
     const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+
+    if (table === "events") {
+      const total = (db.query(`SELECT COUNT(*) AS c FROM events`).get() as { c: number }).c;
+      const rows = db
+        .query(
+          `SELECT * FROM events
+           ORDER BY COALESCE(last_scanned_at, fetched_at) DESC, rowid DESC
+           LIMIT ? OFFSET ?`
+        )
+        .all(limit, offset);
+      return json({
+        success: true,
+        table: "events",
+        limit,
+        offset,
+        total,
+        rows,
+      });
+    }
 
     const rows = db.query(`SELECT * FROM ${table} LIMIT ? OFFSET ?`).all(limit, offset);
     return json({
