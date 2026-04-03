@@ -5,6 +5,7 @@ import EventScannerTerminal from "@/components/EventScannerTerminal";
 import Sidebar from "@/components/Sidebar";
 import WalletTrackingTerminal from "@/components/WalletTrackingTerminal";
 import { BettingBotsPage } from "@/pages/BettingBotsPage";
+import { AgentsPage } from "@/pages/AgentsPage";
 
 function AnalysisPage() {
   return (
@@ -67,6 +68,7 @@ export function App() {
       <Route path="/betting-bots" element={<BettingBotsPage />} />
       <Route path="/wallet-tracking" element={<WalletTrackingPage />} />
       <Route path="/event-scanner" element={<EventScannerPage />} />
+      <Route path="/agents" element={<AgentsPage />} />
       <Route path="*" element={<Navigate to="/market-analysis" replace />} />
     </Routes>
   );

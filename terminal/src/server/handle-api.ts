@@ -1,5 +1,6 @@
 import * as alphaRules from "@/server/api/alpha-rules";
 import * as descriptionAgentStrategies from "@/server/api/description-agent-strategies";
+import * as descriptionAgentStrategiesExpand from "@/server/api/description-agent-strategies-expand";
 import * as arbitrageFinder from "@/server/api/arbitrage-finder";
 import * as bookmakerAgent from "@/server/api/bookmaker-agent";
 import * as eventAnalysisAgent from "@/server/api/event-analysis-agent";
@@ -22,6 +23,9 @@ const routes: Record<string, ApiRouteHandlers> = {
     POST: descriptionAgentStrategies.POST,
     PATCH: descriptionAgentStrategies.PATCH,
     DELETE: descriptionAgentStrategies.DELETE,
+  },
+  "/api/description-agent-strategies-expand": {
+    POST: descriptionAgentStrategiesExpand.POST,
   },
   "/api/arbitrage-finder": { POST: arbitrageFinder.POST },
   "/api/bookmaker-agent": { POST: bookmakerAgent.POST },

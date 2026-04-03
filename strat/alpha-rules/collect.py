@@ -22,6 +22,8 @@ Usage:
 
 Optional parallel LLM over descriptions (separate cron): description_agent.py,
   bash cron/description_agent.sh (see config/description_agent.example.json).
+  Strategies can be edited in the PredictOS Terminal → Agents page (SQLite table
+  description_agent_strategies; strategies_source in JSON, default auto).
 
 All data goes to a single DB: strat/alpha-rules/data/alpha_rules.sqlite
 """

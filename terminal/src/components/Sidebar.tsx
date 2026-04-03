@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   Eye,
   ScanSearch,
+  Sparkles,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ const navItems = [
   { id: "betting-bots", label: "Betting Bots", icon: Bot, href: "/betting-bots" },
   { id: "wallet-tracking", label: "Wallet Tracking", icon: Eye, href: "/wallet-tracking" },
   { id: "event-scanner", label: "Event Scanner", icon: ScanSearch, href: "/event-scanner" },
+  { id: "agents", label: "Agents", icon: Sparkles, href: "/agents" },
 ];
 
 export function Sidebar({ activeTab }: SidebarProps) {

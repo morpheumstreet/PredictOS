@@ -78,7 +78,7 @@ async function openDbRw(): Promise<{ db: Database; dbPath: string } | Response> 
       404
     );
   }
-  const db = new Database(dbPath, { create: false });
+  const db = new Database(dbPath);
   ensureStrategiesTable(db);
   return { db, dbPath };
 }
