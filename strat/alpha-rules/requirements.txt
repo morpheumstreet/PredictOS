@@ -1,1 +1,2 @@
-# collect.py uses only the Python standard library (3.10+).
+# collect.py and description_agent.py use only the Python standard library (3.10+).
+# description_agent.py calls OpenAI Chat Completions (OPENAI_API_KEY).

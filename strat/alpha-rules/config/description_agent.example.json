@@ -1,0 +1,23 @@
+{
+  "model": "gpt-4.1-mini",
+  "temperature": 0.1,
+  "parallel_workers": 4,
+  "batch_size": 16,
+  "request_timeout_sec": 120,
+  "max_retries": 2,
+  "json_response_format": true,
+  "templates": [
+    {
+      "id": "event_objective_criteria_clear",
+      "targets": ["events"],
+      "system": "You evaluate prediction-market rule text. Base your judgment only on the provided text.",
+      "user": "Event title: {event_title}\nSlug: {event_slug}\nResolution source: {resolution_source}\n\nRules / description:\n{description}\n\nQuestion: Based only on the text above, is there a single clear, checkable objective criterion that would let a neutral observer resolve the market without material ambiguity?\n\nAnswer the question with yes or no in the required JSON shape."
+    },
+    {
+      "id": "market_objective_criteria_clear",
+      "targets": ["markets"],
+      "system": "You evaluate prediction-market rule text. Base your judgment only on the provided text.",
+      "user": "Parent event: {event_title} ({event_slug})\nMarket question: {market_question}\nMarket slug: {market_slug}\nResolution source: {resolution_source}\n\nMarket rules / description:\n{description}\n\nQuestion: Based only on the text above, is there a single clear, checkable objective criterion that would let a neutral observer resolve this market without material ambiguity?\n\nAnswer the question with yes or no in the required JSON shape."
+    }
+  ]
+}

@@ -20,6 +20,9 @@ Usage:
   python3 collect.py --sources-config config/external_truth_sources.json
   bash cron/scan.sh
 
+Optional parallel LLM over descriptions (separate cron): description_agent.py,
+  bash cron/description_agent.sh (see config/description_agent.example.json).
+
 All data goes to a single DB: strat/alpha-rules/data/alpha_rules.sqlite
 """
 

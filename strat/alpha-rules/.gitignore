@@ -5,3 +5,4 @@ __pycache__/
 data/
 logs/
 config/external_truth_sources.json
+config/description_agent.json
