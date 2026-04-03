@@ -1,4 +1,5 @@
 import * as alphaRules from "@/server/api/alpha-rules";
+import * as descriptionAgentStrategies from "@/server/api/description-agent-strategies";
 import * as arbitrageFinder from "@/server/api/arbitrage-finder";
 import * as bookmakerAgent from "@/server/api/bookmaker-agent";
 import * as eventAnalysisAgent from "@/server/api/event-analysis-agent";
@@ -16,6 +17,12 @@ export type ApiRouteHandlers = Partial<Record<string, (req: Request) => Promise<
 
 const routes: Record<string, ApiRouteHandlers> = {
   "/api/alpha-rules": { GET: alphaRules.GET },
+  "/api/description-agent-strategies": {
+    GET: descriptionAgentStrategies.GET,
+    POST: descriptionAgentStrategies.POST,
+    PATCH: descriptionAgentStrategies.PATCH,
+    DELETE: descriptionAgentStrategies.DELETE,
+  },
   "/api/arbitrage-finder": { POST: arbitrageFinder.POST },
   "/api/bookmaker-agent": { POST: bookmakerAgent.POST },
   "/api/event-analysis-agent": { POST: eventAnalysisAgent.POST },

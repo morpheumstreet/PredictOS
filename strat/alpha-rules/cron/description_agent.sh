@@ -4,7 +4,7 @@
 #
 # Setup:
 #   cp config/description_agent.example.json config/description_agent.json
-#   export OPENAI_API_KEY=...
+#   OPENAI_* : put in repo terminal/.env (loaded by description_agent.py) or export for cron.
 #
 # Example crontab (every hour, after collect):
 #   0 * * * * bash /full/path/to/strat/alpha-rules/cron/description_agent.sh

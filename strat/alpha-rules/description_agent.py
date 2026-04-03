@@ -2,13 +2,21 @@
 """
 Parallel LLM agent over event/market `description` text from alpha_rules.sqlite.
 
-Uses prompt templates from a JSON config (system + user with placeholders).
+Uses strategies from the SQLite table description_agent_strategies (UI / API CRUD)
+when strategies_source is auto|db|both, else or fallback to JSON config templates.
 Each successful run must return JSON: {"answer":"yes"|"no","supporting_description":"..."}
 (normalized and stored in result_json; answer duplicated in column `answer` for queries).
 
 Cron-friendly; logs via cron/description_agent.sh.
 
 Requires: OPENAI_API_KEY in the environment (Chat Completions API).
+
+Optional URL override (environment):
+  OPENAI_BASE_URL — OpenAI-compatible API root (default https://api.openai.com/v1);
+    requests go to {OPENAI_BASE_URL}/chat/completions.
+
+On startup, loads PredictOS/terminal/.env if it exists (setdefault only: keys
+already in the process environment are left unchanged).
 
 Stdlib only (matches collect.py).
 """
@@ -34,7 +42,55 @@ from urllib.request import Request, urlopen
 # Reuse canonical DB path from collect
 from collect import catalog_db_path
 
-OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+_DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
+
+
+def openai_chat_completions_url() -> str:
+    """POST URL for OpenAI-compatible Chat Completions: {OPENAI_BASE_URL}/chat/completions."""
+    base = os.environ.get("OPENAI_BASE_URL", _DEFAULT_OPENAI_BASE).strip().rstrip("/")
+    return f"{base}/chat/completions"
+
+
+def _parse_dotenv_line(line: str) -> tuple[str, str] | None:
+    s = line.strip()
+    if not s or s.startswith("#"):
+        return None
+    if s.startswith("export "):
+        s = s[7:].lstrip()
+    if "=" not in s:
+        return None
+    key, _, val = s.partition("=")
+    key = key.strip()
+    if not key:
+        return None
+    val = val.strip()
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+        val = val[1:-1]
+    return (key, val)
+
+
+def load_terminal_dotenv() -> None:
+    """
+    Read repo `terminal/.env` and apply entries with os.environ.setdefault.
+    Path: strat/alpha-rules/ -> strat/ -> repo root / terminal/.env
+    """
+    repo = Path(__file__).resolve().parent.parent.parent
+    path = repo / "terminal" / ".env"
+    if not path.is_file():
+        return
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    if raw.startswith("\ufeff"):
+        raw = raw[1:]
+    for line in raw.splitlines():
+        parsed = _parse_dotenv_line(line)
+        if not parsed:
+            continue
+        k, v = parsed
+        os.environ.setdefault(k, v)
+
 
 # Stored JSON shape (after normalization)
 RESULT_SCHEMA_HINT = (
@@ -97,6 +153,141 @@ def migrate_agent_tables(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def init_strategies_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS description_agent_strategies (
+            id TEXT PRIMARY KEY,
+            display_name TEXT,
+            targets_json TEXT NOT NULL DEFAULT '[]',
+            system_prompt TEXT NOT NULL DEFAULT '',
+            user_prompt_template TEXT NOT NULL DEFAULT '',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            model TEXT,
+            temperature REAL,
+            json_response_format INTEGER,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_strategies_enabled_sort
+        ON description_agent_strategies (enabled, sort_order, id)
+        """
+    )
+    conn.commit()
+
+
+def _validate_template_entry(t: dict[str, Any], *, ctx: str) -> None:
+    if not isinstance(t, dict):
+        raise ValueError(f"{ctx}: each template must be an object")
+    tid = t.get("id")
+    if not tid or not isinstance(tid, str):
+        raise ValueError(f"{ctx}: each template needs string id")
+    if not isinstance(t.get("system"), str) or not isinstance(t.get("user"), str):
+        raise ValueError(f'{ctx}: template "{tid}" needs string system and user')
+    tt = t.get("targets")
+    if tt is not None:
+        if not isinstance(tt, list) or not tt:
+            raise ValueError(
+                f'{ctx}: template "{tid}" targets must be a non-empty array or omitted'
+            )
+        for x in tt:
+            if str(x).lower() not in ("events", "markets"):
+                raise ValueError(
+                    f'{ctx}: template "{tid}" targets must be events and/or markets'
+                )
+
+
+def _strategy_row_to_template(row: tuple[Any, ...]) -> dict[str, Any]:
+    rid, targets_json, system_prompt, user_prompt, m, temp, jf = row
+    t: dict[str, Any] = {
+        "id": str(rid),
+        "system": str(system_prompt),
+        "user": str(user_prompt),
+    }
+    raw = (targets_json or "").strip()
+    if raw and raw not in ("[]", "null"):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = []
+        if isinstance(parsed, list) and parsed:
+            clean: list[str] = []
+            for x in parsed:
+                s = str(x).lower()
+                if s in ("events", "markets"):
+                    clean.append(s)
+            if clean:
+                t["targets"] = clean
+    if m is not None and str(m).strip():
+        t["model"] = str(m).strip()
+    if temp is not None:
+        t["temperature"] = float(temp)
+    if jf is not None:
+        t["json_response_format"] = bool(jf)
+    return t
+
+
+def load_enabled_strategies_as_templates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    init_strategies_table(conn)
+    cur = conn.execute(
+        """
+        SELECT id, targets_json, system_prompt, user_prompt_template,
+               model, temperature, json_response_format
+        FROM description_agent_strategies
+        WHERE enabled = 1
+        ORDER BY sort_order ASC, id ASC
+        """
+    )
+    return [_strategy_row_to_template(r) for r in cur.fetchall()]
+
+
+def resolve_strategies(conn: sqlite3.Connection, cfg: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    strategies_source: auto (default) — DB enabled rows if any, else file templates.
+    file — JSON templates only. db — DB only. both — file order, DB overrides by id, then DB-only.
+    """
+    src = str(cfg.get("strategies_source", "auto")).lower()
+    if src not in ("auto", "file", "db", "both"):
+        raise ValueError("strategies_source must be one of: auto, file, db, both")
+
+    file_templates: list[dict[str, Any]] = []
+    raw_ft = cfg.get("templates")
+    if isinstance(raw_ft, list):
+        file_templates = [dict(x) for x in raw_ft if isinstance(x, dict)]
+
+    db_templates = load_enabled_strategies_as_templates(conn)
+
+    if src == "db":
+        return db_templates
+    if src == "file":
+        return file_templates
+    if src == "both":
+        by_id: dict[str, dict[str, Any]] = {t["id"]: dict(t) for t in file_templates}
+        for t in db_templates:
+            by_id[t["id"]] = dict(t)
+        ordered: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for t in file_templates:
+            tid = t["id"]
+            ordered.append(by_id[tid])
+            seen.add(tid)
+        for t in db_templates:
+            if t["id"] not in seen:
+                ordered.append(t)
+                seen.add(t["id"])
+        return ordered
+
+    if db_templates:
+        return db_templates
+    return file_templates
+
+
 def text_hash(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
@@ -107,25 +298,18 @@ def load_config(path: str) -> dict[str, Any]:
     if not isinstance(cfg, dict):
         raise ValueError("config root must be a JSON object")
     templates = cfg.get("templates")
-    if not isinstance(templates, list) or not templates:
-        raise ValueError('config must contain non-empty "templates" array')
+    if templates is None:
+        templates = []
+    if not isinstance(templates, list):
+        raise ValueError('"templates" must be an array')
+    src = str(cfg.get("strategies_source", "auto")).lower()
+    if src not in ("auto", "file", "db", "both"):
+        raise ValueError("strategies_source must be one of: auto, file, db, both")
+    if src == "file" and not templates:
+        raise ValueError('strategies_source=file requires non-empty "templates" in JSON')
     for t in templates:
-        if not isinstance(t, dict):
-            raise ValueError("each template must be an object")
-        tid = t.get("id")
-        if not tid or not isinstance(tid, str):
-            raise ValueError('each template needs string "id"')
-        if not isinstance(t.get("system"), str) or not isinstance(t.get("user"), str):
-            raise ValueError(f'template "{tid}" needs string "system" and "user"')
-        tt = t.get("targets")
-        if tt is not None:
-            if not isinstance(tt, list) or not tt:
-                raise ValueError(f'template "{tid}" "targets" must be a non-empty array')
-            for x in tt:
-                if str(x).lower() not in ("events", "markets"):
-                    raise ValueError(
-                        f'template "{tid}" targets must be "events" and/or "markets"'
-                    )
+        _validate_template_entry(t, ctx="config JSON")
+    cfg["templates"] = templates
     return cfg
 
 
@@ -214,7 +398,7 @@ def openai_chat_completion(
         payload["response_format"] = {"type": "json_object"}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = Request(
-        OPENAI_CHAT_URL,
+        openai_chat_completions_url(),
         data=body,
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -398,6 +582,9 @@ class Job:
     user_rendered: str
     input_hash: str
     ctx: dict[str, Any]
+    model_override: str | None = None
+    temperature_override: float | None = None
+    json_object_override: bool | None = None
 
 
 def build_jobs(
@@ -447,6 +634,12 @@ def build_jobs(
                 raise ValueError(
                     f'template "{tid}" references unknown placeholder: {e}'
                 ) from e
+            mo = t.get("model")
+            mo_s = str(mo).strip() if mo is not None and str(mo).strip() else None
+            to = t.get("temperature")
+            to_v = float(to) if to is not None else None
+            jo = t.get("json_response_format")
+            jo_v = bool(jo) if jo is not None else None
             jobs.append(
                 Job(
                     target_type=row["target_type"],
@@ -456,6 +649,9 @@ def build_jobs(
                     user_rendered=user_rendered,
                     input_hash=h,
                     ctx=ctx,
+                    model_override=mo_s,
+                    temperature_override=to_v,
+                    json_object_override=jo_v,
                 )
             )
             if max_jobs is not None and len(jobs) >= max_jobs:
@@ -479,16 +675,27 @@ def run_worker(
     On JSON parse failure: error set, output_text holds raw model output (truncated).
     On HTTP/API failure: error set, output_text None.
     """
+    eff_model = (job.model_override or "").strip() or model
+    eff_temp = (
+        job.temperature_override
+        if job.temperature_override is not None
+        else temperature
+    )
+    eff_json = (
+        job.json_object_override
+        if job.json_object_override is not None
+        else json_object
+    )
     try:
         raw = openai_with_retries(
             api_key=api_key,
-            model=model,
+            model=eff_model,
             system=job.system,
             user=job.user_rendered,
-            temperature=temperature,
+            temperature=eff_temp,
             timeout=timeout,
             max_retries=max_retries,
-            json_object=json_object,
+            json_object=eff_json,
         )
         try:
             norm, canonical = parse_yes_no_json_response(raw)
@@ -531,6 +738,16 @@ def run_agent(
     conn = sqlite3.connect(db_path)
     try:
         init_agent_tables(conn)
+        init_strategies_table(conn)
+        resolved = resolve_strategies(conn, cfg)
+        cfg = {**cfg, "templates": resolved}
+        if not resolved:
+            print(
+                "No strategies to run: enable rows in description_agent_strategies "
+                "(PredictOS Agents UI) or add templates in JSON; check strategies_source.",
+                file=sys.stderr,
+            )
+            return (0, 0, 2)
         jobs = build_jobs(
             conn,
             cfg,
@@ -543,7 +760,8 @@ def run_agent(
         conn.close()
 
     print(
-        f"Queued {len(jobs)} jobs (model={model}, workers={workers}, batch_size={batch_size}).",
+        f"Queued {len(jobs)} jobs (default_model={model}, "
+        f"strategies={len(resolved)}, workers={workers}, batch_size={batch_size}).",
         file=sys.stderr,
     )
     if dry_run:
@@ -586,13 +804,14 @@ def run_agent(
         try:
             init_agent_tables(wconn)
             for job, err, result_json, answer, raw_out in results:
+                eff_model = (job.model_override or "").strip() or model
                 upsert_result(
                     wconn,
                     target_type=job.target_type,
                     target_id=job.target_id,
                     template_id=job.template_id,
                     input_hash=job.input_hash,
-                    model=model,
+                    model=eff_model,
                     result_json=result_json,
                     answer=answer,
                     output_text=raw_out if err else None,
@@ -673,6 +892,7 @@ def main() -> int:
         help="List jobs only; no API calls or DB writes.",
     )
     args = p.parse_args()
+    load_terminal_dotenv()
 
     raw_targets = {x.strip().lower() for x in args.targets.split(",") if x.strip()}
     allowed = {"events", "markets"}
