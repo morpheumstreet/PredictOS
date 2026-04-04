@@ -6,10 +6,12 @@ import type {
 import {
   deleteStrategy,
   fetchStrategiesList,
+  fetchStrategyStatus,
   patchStrategy,
   postExpandStrategy,
   postStrategy,
 } from "./descriptionAgentStrategiesApi";
+import type { DescriptionAgentStrategyStatusPayload } from "./descriptionAgentStrategiesApi";
 import { mergeIntentIntoNotes, extractIntentFromNotes } from "./strategyNotes";
 import {
   editIdFromPanel,
@@ -30,6 +32,11 @@ export function useAgentsPage() {
   const [modalTab, setModalTab] = useState<ModalTab>("strategy");
   const [intentDraft, setIntentDraft] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [strategyStatus, setStrategyStatus] = useState<DescriptionAgentStrategyStatusPayload | null>(
+    null
+  );
+  const [strategyStatusError, setStrategyStatusError] = useState<string | null>(null);
+  const [strategyStatusLoading, setStrategyStatusLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,10 +55,24 @@ export function useAgentsPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setStrategyStatus(null);
+    setStrategyStatusError(null);
+  }, [panel]);
+
+  useEffect(() => {
+    if (panel === "new" && modalTab === "status") {
+      setModalTab("strategy");
+    }
+  }, [panel, modalTab, setModalTab]);
+
   const resetModalUi = useCallback(() => {
     setIntentDraft("");
     setModalTab("strategy");
     setGenerating(false);
+    setStrategyStatus(null);
+    setStrategyStatusError(null);
+    setStrategyStatusLoading(false);
   }, []);
 
   const openNew = useCallback(() => {
@@ -72,6 +93,46 @@ export function useAgentsPage() {
     setPanel(null);
     resetModalUi();
   }, [resetModalUi]);
+
+  const refreshStrategyStatus = useCallback(async () => {
+    const id = editIdFromPanel(panel);
+    if (!id) return;
+    setStrategyStatusLoading(true);
+    setStrategyStatusError(null);
+    const result = await fetchStrategyStatus(id);
+    if (result.ok) {
+      setStrategyStatus(result.status);
+    } else {
+      setStrategyStatus(null);
+      setStrategyStatusError(result.error);
+    }
+    setStrategyStatusLoading(false);
+  }, [panel]);
+
+  useEffect(() => {
+    const id = editIdFromPanel(panel);
+    if (modalTab !== "status" || !id) {
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      const result = await fetchStrategyStatus(id);
+      if (cancelled) return;
+      if (result.ok) {
+        setStrategyStatus(result.status);
+        setStrategyStatusError(null);
+      } else {
+        setStrategyStatus(null);
+        setStrategyStatusError(result.error);
+      }
+    };
+    void tick();
+    const iv = setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [modalTab, panel]);
 
   const runExpand = useCallback(async () => {
     const intent = intentDraft.trim();
@@ -193,6 +254,9 @@ export function useAgentsPage() {
     modalTab,
     intentDraft,
     generating,
+    strategyStatus,
+    strategyStatusError,
+    strategyStatusLoading,
     setError,
     setForm,
     setModalTab,
@@ -204,5 +268,6 @@ export function useAgentsPage() {
     toggleTarget,
     submit,
     remove,
+    refreshStrategyStatus,
   };
 }

@@ -5,6 +5,27 @@ import type {
 
 const STRATEGIES_URL = "/api/description-agent-strategies";
 const EXPAND_URL = "/api/description-agent-strategies-expand";
+const STATUS_URL = "/api/description-agent-strategy-status";
+
+export type DescriptionAgentStrategyStatusPayload = {
+  strategyId: string;
+  enabled: boolean;
+  runnerParallelWorkers: number;
+  runnerConfigWorkers: number | null;
+  runStatePath: string;
+  staleRunFileRemoved: boolean;
+  running: boolean;
+  runPid: number | null;
+  runStartedAt: string | null;
+  runTotalJobs: number;
+  runCompletedJobs: number;
+  queuedJobsThisStrategy: number;
+  completedJobsThisStrategyInRun: number;
+  estimatedFinishAt: string | null;
+  processedRowsInDatabase: number;
+  failedRowsInDatabase: number;
+  lastProcessedAt: string | null;
+};
 
 type Fail = { ok: false; error: string };
 
@@ -97,6 +118,48 @@ export async function patchStrategy(
     return { ok: true };
   } catch {
     return { ok: false, error: "Network error" };
+  }
+}
+
+export async function fetchStrategyStatus(
+  id: string
+): Promise<{ ok: true; status: DescriptionAgentStrategyStatusPayload } | Fail> {
+  try {
+    const res = await fetch(`${STATUS_URL}?id=${encodeURIComponent(id)}`);
+    const data = (await res.json()) as {
+      success?: boolean;
+      error?: string;
+    } & Partial<DescriptionAgentStrategyStatusPayload>;
+    if (!res.ok || !data.success || !data.strategyId) {
+      return { ok: false, error: data.error || `Status failed (${res.status})` };
+    }
+    return {
+      ok: true,
+      status: {
+        strategyId: data.strategyId,
+        enabled: Boolean(data.enabled),
+        runnerParallelWorkers: Number(data.runnerParallelWorkers ?? 4),
+        runnerConfigWorkers:
+          data.runnerConfigWorkers === null || data.runnerConfigWorkers === undefined
+            ? null
+            : Number(data.runnerConfigWorkers),
+        runStatePath: String(data.runStatePath ?? ""),
+        staleRunFileRemoved: Boolean(data.staleRunFileRemoved),
+        running: Boolean(data.running),
+        runPid: data.runPid ?? null,
+        runStartedAt: data.runStartedAt ?? null,
+        runTotalJobs: Number(data.runTotalJobs ?? 0),
+        runCompletedJobs: Number(data.runCompletedJobs ?? 0),
+        queuedJobsThisStrategy: Number(data.queuedJobsThisStrategy ?? 0),
+        completedJobsThisStrategyInRun: Number(data.completedJobsThisStrategyInRun ?? 0),
+        estimatedFinishAt: data.estimatedFinishAt ?? null,
+        processedRowsInDatabase: Number(data.processedRowsInDatabase ?? 0),
+        failedRowsInDatabase: Number(data.failedRowsInDatabase ?? 0),
+        lastProcessedAt: data.lastProcessedAt ?? null,
+      },
+    };
+  } catch {
+    return { ok: false, error: "Network error loading strategy status" };
   }
 }
 

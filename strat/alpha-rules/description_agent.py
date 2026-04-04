@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from collections import Counter
 import sys
 import time
 import traceback
@@ -102,6 +103,46 @@ RESULT_SCHEMA_HINT = (
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(path)
+
+
+def write_description_agent_run_state(
+    path: Path,
+    *,
+    pid: int,
+    started_at: str,
+    workers: int,
+    total_jobs: int,
+    completed_jobs: int,
+    by_template: dict[str, dict[str, int]],
+) -> None:
+    """Written next to alpha_rules.sqlite while a run is active (for Agents UI status)."""
+    _atomic_write_json(
+        path,
+        {
+            "version": 1,
+            "pid": pid,
+            "started_at": started_at,
+            "workers": workers,
+            "total_jobs": total_jobs,
+            "completed_jobs": completed_jobs,
+            "by_template": by_template,
+        },
+    )
+
+
+def clear_description_agent_run_state(path: Path) -> None:
+    try:
+        if path.is_file():
+            path.unlink()
+    except OSError:
+        pass
 
 
 def init_agent_tables(conn: sqlite3.Connection) -> None:
@@ -774,61 +815,98 @@ def run_agent(
             print(f"  … and {len(jobs) - 10} more", file=sys.stderr)
         return (len(jobs), 0, 0)
 
+    if not jobs:
+        return (0, 0, 0)
+
     ok = 0
     fail = 0
     now = utc_now_iso()
 
-    for i in range(0, len(jobs), batch_size):
-        chunk = jobs[i : i + batch_size]
-        results: list[
-            tuple[Job, str | None, str | None, str | None, str | None]
-        ] = []
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs = [
-                ex.submit(
-                    run_worker,
-                    j,
-                    api_key=api_key,
-                    model=model,
-                    temperature=temperature,
-                    timeout=timeout,
-                    max_retries=max_retries,
-                    json_object=json_object,
-                )
-                for j in chunk
-            ]
-            for fut in as_completed(futs):
-                results.append(fut.result())
+    run_state_path = Path(db_path).parent / "description_agent_run.json"
+    counts = Counter(j.template_id for j in jobs)
+    by_template: dict[str, dict[str, int]] = {
+        tid: {"queued": c, "completed": 0} for tid, c in counts.items()
+    }
+    run_started_wall = utc_now_iso()
+    completed_jobs = 0
+    write_description_agent_run_state(
+        run_state_path,
+        pid=os.getpid(),
+        started_at=run_started_wall,
+        workers=workers,
+        total_jobs=len(jobs),
+        completed_jobs=0,
+        by_template=by_template,
+    )
 
-        wconn = sqlite3.connect(db_path)
-        try:
-            init_agent_tables(wconn)
-            for job, err, result_json, answer, raw_out in results:
-                eff_model = (job.model_override or "").strip() or model
-                upsert_result(
-                    wconn,
-                    target_type=job.target_type,
-                    target_id=job.target_id,
-                    template_id=job.template_id,
-                    input_hash=job.input_hash,
-                    model=eff_model,
-                    result_json=result_json,
-                    answer=answer,
-                    output_text=raw_out if err else None,
-                    error=err,
-                    processed_at=now,
-                )
-                if err:
-                    fail += 1
-                    print(
-                        f"FAIL {job.target_type} {job.target_id} {job.template_id}: {err}",
-                        file=sys.stderr,
+    try:
+        for i in range(0, len(jobs), batch_size):
+            chunk = jobs[i : i + batch_size]
+            results: list[
+                tuple[Job, str | None, str | None, str | None, str | None]
+            ] = []
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futs = [
+                    ex.submit(
+                        run_worker,
+                        j,
+                        api_key=api_key,
+                        model=model,
+                        temperature=temperature,
+                        timeout=timeout,
+                        max_retries=max_retries,
+                        json_object=json_object,
                     )
-                else:
-                    ok += 1
-            wconn.commit()
-        finally:
-            wconn.close()
+                    for j in chunk
+                ]
+                for fut in as_completed(futs):
+                    results.append(fut.result())
+
+            wconn = sqlite3.connect(db_path)
+            try:
+                init_agent_tables(wconn)
+                for job, err, result_json, answer, raw_out in results:
+                    eff_model = (job.model_override or "").strip() or model
+                    upsert_result(
+                        wconn,
+                        target_type=job.target_type,
+                        target_id=job.target_id,
+                        template_id=job.template_id,
+                        input_hash=job.input_hash,
+                        model=eff_model,
+                        result_json=result_json,
+                        answer=answer,
+                        output_text=raw_out if err else None,
+                        error=err,
+                        processed_at=now,
+                    )
+                    if err:
+                        fail += 1
+                        print(
+                            f"FAIL {job.target_type} {job.target_id} {job.template_id}: {err}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        ok += 1
+                    tid = job.template_id
+                    if tid in by_template:
+                        by_template[tid]["completed"] += 1
+                    completed_jobs += 1
+                wconn.commit()
+            finally:
+                wconn.close()
+
+            write_description_agent_run_state(
+                run_state_path,
+                pid=os.getpid(),
+                started_at=run_started_wall,
+                workers=workers,
+                total_jobs=len(jobs),
+                completed_jobs=completed_jobs,
+                by_template=by_template,
+            )
+    finally:
+        clear_description_agent_run_state(run_state_path)
 
     print(f"Done. ok={ok} fail={fail}", file=sys.stderr)
     code = 1 if fail else 0

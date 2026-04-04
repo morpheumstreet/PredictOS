@@ -16,6 +16,9 @@ export function AgentsPage() {
     modalTab,
     intentDraft,
     generating,
+    strategyStatus,
+    strategyStatusError,
+    strategyStatusLoading,
     setForm,
     setModalTab,
     setIntentDraft,
@@ -26,6 +29,7 @@ export function AgentsPage() {
     toggleTarget,
     submit,
     remove,
+    refreshStrategyStatus,
   } = useAgentsPage();
 
   return (
@@ -49,6 +53,9 @@ export function AgentsPage() {
           intentDraft={intentDraft}
           generating={generating}
           saving={saving}
+          strategyStatus={strategyStatus}
+          strategyStatusError={strategyStatusError}
+          strategyStatusLoading={strategyStatusLoading}
           onClose={closePanel}
           setModalTab={setModalTab}
           setIntentDraft={setIntentDraft}
@@ -56,6 +63,7 @@ export function AgentsPage() {
           toggleTarget={toggleTarget}
           onExpand={runExpand}
           onSubmit={submit}
+          onRefreshStrategyStatus={refreshStrategyStatus}
         />
       </main>
     </div>

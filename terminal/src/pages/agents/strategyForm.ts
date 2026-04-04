@@ -17,7 +17,7 @@ export type StrategyForm = {
 
 export type AgentsPanel = "new" | { edit: string } | null;
 
-export type ModalTab = "strategy" | "advanced";
+export type ModalTab = "strategy" | "advanced" | "status";
 
 export function emptyStrategyForm(): StrategyForm {
   return {

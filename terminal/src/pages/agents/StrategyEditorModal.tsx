@@ -1,7 +1,9 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
+  Activity,
   FileText,
   Loader2,
+  RefreshCw,
   Save,
   SlidersHorizontal,
   Wand2,
@@ -20,7 +22,18 @@ import {
   TEXTAREA_FIELD,
   TEXTAREA_MONO,
 } from "./constants";
+import type { DescriptionAgentStrategyStatusPayload } from "./descriptionAgentStrategiesApi";
 import type { AgentsPanel, ModalTab, StrategyForm } from "./strategyForm";
+
+function formatIso(iso: string | null): string {
+  if (!iso) return "—";
+  const d = Date.parse(iso);
+  if (!Number.isFinite(d)) return iso;
+  return new Date(d).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  });
+}
 
 type ModalProps = {
   panel: AgentsPanel;
@@ -29,6 +42,9 @@ type ModalProps = {
   intentDraft: string;
   generating: boolean;
   saving: boolean;
+  strategyStatus: DescriptionAgentStrategyStatusPayload | null;
+  strategyStatusError: string | null;
+  strategyStatusLoading: boolean;
   onClose: () => void;
   setModalTab: (t: ModalTab) => void;
   setIntentDraft: Dispatch<SetStateAction<string>>;
@@ -36,6 +52,7 @@ type ModalProps = {
   toggleTarget: (t: DescriptionAgentStrategyTarget) => void;
   onExpand: () => void | Promise<void>;
   onSubmit: () => void | Promise<void>;
+  onRefreshStrategyStatus: () => void | Promise<void>;
 };
 
 function TabButton(props: {
@@ -119,6 +136,141 @@ function StrategyTabContent(props: {
   );
 }
 
+function StatusTabContent(props: {
+  form: StrategyForm;
+  status: DescriptionAgentStrategyStatusPayload | null;
+  error: string | null;
+}) {
+  const draftMismatch =
+    props.status !== null && props.form.enabled !== props.status.enabled;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground max-w-xl">
+        Live view of the description runner (
+        <code className="text-primary/90">description_agent.py</code>
+        ). Parallel workers are shared across all strategies in one process. Use Refresh below or wait
+        — this tab polls every few seconds.
+      </p>
+
+      {props.error ? (
+        <p className="text-sm text-destructive">{props.error}</p>
+      ) : null}
+
+      {!props.error && props.status === null ? (
+        <p className="text-sm text-muted-foreground">Loading status…</p>
+      ) : null}
+
+      {props.status ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Enabled (saved in database)
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.enabled ? "Yes" : "No"}
+            </div>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Enabled (this dialog)
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>{props.form.enabled ? "Yes" : "No"}</div>
+          </label>
+          {draftMismatch ? (
+            <p className="sm:col-span-2 text-xs text-amber-600 dark:text-amber-500">
+              Saved database value differs from the Advanced tab checkbox until you click Save.
+            </p>
+          ) : null}
+
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Parallel HTTP workers (this run / config)
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.runnerParallelWorkers}
+              {props.status.runnerConfigWorkers != null
+                ? ` (config: ${props.status.runnerConfigWorkers})`
+                : " (config file missing — default used)"}
+            </div>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Runner active now
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.running ? (
+                <span className="text-primary">
+                  Yes{props.status.runPid != null ? ` (pid ${props.status.runPid})` : ""}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">No</span>
+              )}
+            </div>
+          </label>
+
+          <label className="block space-y-1 sm:col-span-2">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              This strategy — jobs in current run
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.running
+                ? `${props.status.completedJobsThisStrategyInRun} / ${props.status.queuedJobsThisStrategy} completed for this strategy`
+                : "Runner idle (no active run). When the worker runs, progress for this strategy appears here."}
+            </div>
+          </label>
+
+          <label className="block space-y-1 sm:col-span-2">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Whole run — all strategies
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.runTotalJobs > 0
+                ? `${props.status.runCompletedJobs} / ${props.status.runTotalJobs} jobs`
+                : "—"}
+            </div>
+          </label>
+
+          <label className="block space-y-1 sm:col-span-2">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Estimated finish (whole run)
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.running && props.status.estimatedFinishAt
+                ? formatIso(props.status.estimatedFinishAt)
+                : props.status.running
+                  ? "Not enough progress yet to estimate"
+                  : "—"}
+            </div>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Rows stored for this strategy
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {props.status.processedRowsInDatabase} total
+              {props.status.failedRowsInDatabase > 0
+                ? ` (${props.status.failedRowsInDatabase} with errors)`
+                : ""}
+            </div>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+              Last row written
+            </span>
+            <div className={`${INPUT_READONLY} text-sm`}>
+              {formatIso(props.status.lastProcessedAt)}
+            </div>
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AdvancedTabContent(props: {
   panel: AgentsPanel;
   form: StrategyForm;
@@ -168,15 +320,25 @@ function AdvancedTabContent(props: {
           className={`${TEXTAREA_MONO} min-h-[120px] max-h-[32vh]`}
         />
       </label>
-      <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
-        <input
-          type="checkbox"
-          checked={props.form.enabled}
-          onChange={(e) => props.setForm((f) => ({ ...f, enabled: e.target.checked }))}
-          className={CHECKBOX_FIELD}
-        />
-        <span className="text-muted-foreground">Enabled</span>
-      </label>
+      <div className="space-y-2 pt-1 border-t border-border/60">
+        <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">
+          Runner inclusion
+        </span>
+        <label className="flex items-center gap-2 text-sm cursor-pointer w-fit">
+          <input
+            type="checkbox"
+            checked={props.form.enabled}
+            onChange={(e) => props.setForm((f) => ({ ...f, enabled: e.target.checked }))}
+            className={CHECKBOX_FIELD}
+          />
+          <span className="text-muted-foreground">Enabled</span>
+        </label>
+        <p className="text-xs text-muted-foreground max-w-xl">
+          When enabled, <code className="text-primary/90">description_agent.py</code> can load this
+          strategy on its next run (with your saved prompts). When disabled, the runner skips it—this
+          does not stop a run that is already in progress. Click Save to persist.
+        </p>
+      </div>
     </div>
   );
 }
@@ -215,6 +377,14 @@ export function StrategyEditorModal(props: ModalProps) {
             label="Advanced"
             onClick={() => props.setModalTab("advanced")}
           />
+          {panel !== "new" ? (
+            <TabButton
+              selected={props.modalTab === "status"}
+              icon={<Activity className="w-4 h-4" />}
+              label="Status"
+              onClick={() => props.setModalTab("status")}
+            />
+          ) : null}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
@@ -225,8 +395,14 @@ export function StrategyEditorModal(props: ModalProps) {
               onIntentChange={props.setIntentDraft}
               onToggleTarget={props.toggleTarget}
             />
-          ) : (
+          ) : props.modalTab === "advanced" ? (
             <AdvancedTabContent panel={panel} form={props.form} setForm={props.setForm} />
+          ) : (
+            <StatusTabContent
+              form={props.form}
+              status={props.strategyStatus}
+              error={props.strategyStatusError}
+            />
           )}
         </div>
 
@@ -257,7 +433,7 @@ export function StrategyEditorModal(props: ModalProps) {
                 {panel === "new" ? "Generate prompts" : "Regenerate prompts"}
               </button>
             </div>
-          ) : (
+          ) : props.modalTab === "advanced" ? (
             <div className="flex flex-wrap gap-2 justify-end">
               <button
                 type="button"
@@ -266,6 +442,15 @@ export function StrategyEditorModal(props: ModalProps) {
               >
                 ← Strategy
               </button>
+              {panel !== "new" ? (
+                <button
+                  type="button"
+                  onClick={() => props.setModalTab("status")}
+                  className={`px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/80 ${MODAL_BTN_FOCUS}`}
+                >
+                  Status
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void props.onSubmit()}
@@ -278,6 +463,29 @@ export function StrategyEditorModal(props: ModalProps) {
                   <Save className="w-4 h-4" />
                 )}
                 Save
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => props.setModalTab("advanced")}
+                className={BTN_GHOST}
+              >
+                ← Advanced
+              </button>
+              <button
+                type="button"
+                onClick={() => void props.onRefreshStrategyStatus()}
+                disabled={props.strategyStatusLoading}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm ${MODAL_BTN_FOCUS} hover:bg-secondary/80 disabled:opacity-50`}
+              >
+                {props.strategyStatusLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Refresh
               </button>
             </div>
           )}
