@@ -42,7 +42,7 @@ from urllib.request import Request, urlopen
 # Reuse canonical DB path from collect
 from collect import catalog_db_path
 
-_DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
+_DEFAULT_OPENAI_BASE = "https://v7.ns.mormscan.io/v1"
 
 
 def openai_chat_completions_url() -> str:
