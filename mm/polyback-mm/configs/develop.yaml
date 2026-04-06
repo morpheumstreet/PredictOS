@@ -1,0 +1,114 @@
+hft:
+  mode: PAPER
+  events:
+    enabled: true
+    topic: polybot.events
+    market_ws_tob_min_interval_millis: 250
+    market_ws_snapshot_publish_millis: 1000
+    market_ws_cache_publish_on_start: true
+  executor:
+    base_url: http://127.0.0.1:8080
+    send_live_ack: false
+  polymarket:
+    gamma_url: https://gamma-api.polymarket.com
+    clob_rest_url: https://clob.polymarket.com
+    clob_ws_url: wss://ws-subscriptions-clob.polymarket.com
+    chain_id: 137
+    market_ws_enabled: true
+    market_ws_stale_timeout_millis: 60000
+    market_ws_reconnect_backoff_millis: 2000
+    market_ws_cache_path: .cache/ws/market-ws-cache.strategy.json
+    market_ws_cache_flush_millis: 5000
+    auth:
+      private_key: ""
+  strategy:
+    gabagool:
+      enabled: true
+      refresh_millis: 500
+      min_replace_millis: 500
+      min_seconds_to_end: 0
+      max_seconds_to_end: 3600
+      improve_ticks: 0
+      quote_size: 10
+      quote_size_bankroll_fraction: 0.001
+      bankroll_mode: FIXED
+      bankroll_usd: 500
+      bankroll_refresh_millis: 10000
+      bankroll_smoothing_alpha: 0.2
+      bankroll_min_threshold: 50
+      bankroll_trading_fraction: 0.8
+      max_order_bankroll_fraction: 0.02
+      max_total_bankroll_fraction: 0.5
+      complete_set_min_edge: 0.001
+      complete_set_max_skew_ticks: 0
+      complete_set_imbalance_shares_for_max_skew: 5000
+      complete_set_top_up_enabled: true
+      complete_set_top_up_seconds_to_end: 120
+      complete_set_top_up_min_shares: 80
+      complete_set_fast_top_up_enabled: false
+      complete_set_fast_top_up_min_shares: 30
+      complete_set_fast_top_up_min_seconds_after_fill: 30
+      complete_set_fast_top_up_max_seconds_after_fill: 180
+      complete_set_fast_top_up_cooldown_millis: 45000
+      complete_set_fast_top_up_min_edge: 0.001
+      taker_mode_enabled: false
+      taker_mode_max_edge: 0.02
+      taker_mode_max_spread: 0.05
+  risk:
+    kill_switch: false
+    max_order_notional_usd: 0
+
+executor:
+  sim:
+    enabled: true
+    fills_enabled: true
+    fill_poll_millis: 500
+    maker_fill_probability_per_poll: 0.01
+    maker_fill_probability_multiplier_per_tick: 1.0
+    maker_fill_probability_max_per_poll: 0.015
+    maker_fill_fraction_of_remaining: 0.25
+    username: paper-user
+    proxy_address: "0x0000000000000000000000000000000000000001"
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+
+server:
+  executor_addr: :8080
+  strategy_addr: :8081
+  analytics_addr: :8082
+  ingestor_addr: :8083
+  infrastructure_addr: :8084
+
+infrastructure:
+  startup_timeout_seconds: 120
+  health_check_interval_seconds: 5
+  polybot_home: ""
+  stacks:
+    - name: analytics
+      file_path: docker-compose.analytics.yaml
+      project_name: polybot
+      expected_services: 2
+      startup_order: 1
+    - name: monitoring
+      file_path: docker-compose.monitoring.yaml
+      project_name: polybot-monitoring
+      expected_services: 4
+      startup_order: 2
+
+ingestor:
+  polymarket:
+    username: ""
+    proxy_address: ""
+    data_api_base_url: https://data-api.polymarket.com
+  polling:
+    enabled: false
+  clickhouse:
+    base_url: http://127.0.0.1:8123
+    database: polybot
+    user: default
+    password: ""
+
+analytics:
+  clickhouse_dsn: clickhouse://default@127.0.0.1:9000/polybot?dial_timeout=5s

@@ -1,0 +1,10 @@
+/bin/
+*.exe
+*.test
+coverage.out
+vendor/
+.cache/
+logs/
+*.pid
+.env
+.DS_Store
