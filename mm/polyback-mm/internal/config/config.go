@@ -59,7 +59,31 @@ type AuthCfg struct {
 }
 
 type StrategyCfg struct {
-	Gabagool GabagoolCfg `yaml:"gabagool"`
+	Gabagool     GabagoolCfg     `yaml:"gabagool"`
+	MarketMaker  MarketMakerCfg  `yaml:"market_maker"`
+}
+
+// MarketMakerCfg enables study.md-style quoting + toxicity (see internal/strategy/quoting, toxicity).
+type MarketMakerCfg struct {
+	Enabled bool `yaml:"enabled"`
+
+	TradeWindowMillis int `yaml:"trade_window_millis"`
+	BurstTradeCount   int `yaml:"burst_trade_count"`
+
+	ImpactSpreadMultiple float64 `yaml:"impact_spread_multiple"`
+
+	LiquidityDropRatio float64 `yaml:"liquidity_drop_ratio"`
+
+	ToxicityPenaltyMax float64 `yaml:"toxicity_penalty_max"`
+	ToxicityUnsafeBurst int   `yaml:"toxicity_unsafe_burst"`
+
+	BaseSpread     float64 `yaml:"base_spread"`
+	VolSpreadBonus float64 `yaml:"vol_spread_bonus"`
+
+	ImbalanceSkewScale float64 `yaml:"imbalance_skew_scale"`
+
+	NoiseSigma    float64 `yaml:"noise_sigma"`
+	NoiseMaxTicks int     `yaml:"noise_max_ticks"`
 }
 
 type GabagoolCfg struct {

@@ -2,6 +2,24 @@
 
 This is **not** a rewrite — it is a clean **extension** of what you already have in `https://github.com/morpheumstreet/PredictOS/tree/main/mm/polyback-mm`.
 
+### Implementation status (evolutionary slice)
+
+The first integrated slice is **live in-tree** with a **pull-based** data path: there is no `SubscribeL2` channel loop yet; `gabagool.Engine` still runs on its refresh ticker. When `hft.strategy.market_maker.enabled` is `true`, [`maybeQuoteToken`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) asks [`marketmaker.UseCase.MakerBid`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) for a bid; on failure or `ok == false` it **falls back** to [`QuoteCalculator.CalculateEntryPrice`](../../mm/polyback-mm/internal/strategy/gabagool/quotecalc.go).
+
+| Area | Location |
+|------|-----------|
+| Domain (MM types) | [`../../mm/polyback-mm/internal/domain/`](../../mm/polyback-mm/internal/domain/) — `trade.go`, `orderbook_l2.go`, `market_snapshot.go`, `position_mm.go`, `toxicity_signal.go`, `quote_mm.go` |
+| Ports | [`../../mm/polyback-mm/internal/ports/input/`](../../mm/polyback-mm/internal/ports/input/), [`polymarket_executor.go`](../../mm/polyback-mm/internal/ports/output/polymarket_executor.go) (stub) |
+| Application | [`usecase.go`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) |
+| WS adapter | [`ws_provider.go`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) |
+| Quoting + toxicity | [`quoting/`](../../mm/polyback-mm/internal/strategy/quoting/), [`toxicity/`](../../mm/polyback-mm/internal/strategy/toxicity/) |
+| Risk | [`mm_evaluator.go`](../../mm/polyback-mm/internal/strategy/risk/mm_evaluator.go) |
+| Wiring | [`marketmaker_wiring.go`](../../mm/polyback-mm/internal/wiring/marketmaker_wiring.go) |
+| WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA` |
+| Config | `hft.strategy.market_maker` in YAML (see [`develop.yaml`](../../mm/polyback-mm/configs/develop.yaml)); default **`enabled: false`** |
+
+**Phase 2:** add a push-based `Run(ctx)` + `SubscribeL2` once the WS client can deliver snapshots without duplicating the strategy ticker; persist full L2, VPIN, one-sided depth pause, and news-driven withdraw as separate packages per the target layout below.
+
 ### 1. Architecture Principles (strictly followed)
 - **Clean Architecture** (ports & adapters / hexagonal):  
   Domain ← Application ← Adapters ← Infrastructure  

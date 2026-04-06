@@ -1,16 +1,19 @@
 package gabagool
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/application/marketmaker"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
 	"github.com/shopspring/decimal"
 )
 
@@ -28,14 +31,15 @@ type Engine struct {
 	pos      *PositionTracker
 	qc       *QuoteCalculator
 	om       *OrderManager
-	mu           sync.RWMutex
-	active       []Market
+	mm       *marketmaker.UseCase
+	mu       sync.RWMutex
+	active   []Market
 	tickSize map[string]tickEnt
 	stop     chan struct{}
 	wg       sync.WaitGroup
 }
 
-func NewEngine(root *config.Root, feed polyws.MarketFeed, ex *executorclient.Client, disc *Discovery, met *metrics.Service, om *OrderManager) *Engine {
+func NewEngine(root *config.Root, feed polyws.MarketFeed, ex *executorclient.Client, disc *Discovery, met *metrics.Service, om *OrderManager, mm *marketmaker.UseCase) *Engine {
 	if feed == nil {
 		feed = polyws.NoopMarketFeed{}
 	}
@@ -43,7 +47,7 @@ func NewEngine(root *config.Root, feed polyws.MarketFeed, ex *executorclient.Cli
 	p := NewPositionTracker(ex)
 	qc := NewQuoteCalculator(b, root, met)
 	return &Engine{
-		root: root, feed: feed, exec: ex, disc: disc, bank: b, pos: p, qc: qc, om: om,
+		root: root, feed: feed, exec: ex, disc: disc, bank: b, pos: p, qc: qc, om: om, mm: mm,
 		tickSize: map[string]tickEnt{}, stop: make(chan struct{}),
 	}
 }
@@ -265,7 +269,19 @@ func (e *Engine) maybeQuoteToken(m *Market, tokenID string, dir Direction, book,
 	if tokenID == "" || book == nil {
 		return
 	}
-	entry := e.qc.CalculateEntryPrice(book, *tick, g, skew)
+	var entry *decimal.Decimal
+	mmCfg := e.root.Hft.Strategy.MarketMaker
+	if e.mm != nil && mmCfg.Enabled {
+		pos := &domain.MMPosition{MarketSlug: m.Slug, AssetID: tokenID, SkewTicks: skew}
+		bid, ok, _, err := e.mm.MakerBid(context.Background(), tokenID, *tick, pos)
+		if err == nil && ok {
+			rt := RoundToTick(bid, *tick, false)
+			entry = ValidateMakerBidPrice(rt, book, *tick)
+		}
+	}
+	if entry == nil {
+		entry = e.qc.CalculateEntryPrice(book, *tick, g, skew)
+	}
 	if entry == nil {
 		return
 	}

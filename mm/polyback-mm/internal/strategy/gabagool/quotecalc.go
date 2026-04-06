@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
 	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
 	"github.com/shopspring/decimal"
 )
 
@@ -277,6 +277,24 @@ func (q *QuoteCalculator) CalculateExposure(open map[string]*OrderState, invento
 		q.met.UpdateTotalExposure(total)
 	}
 	return total
+}
+
+// ValidateMakerBidPrice applies gabagool bounds and non-crossing vs best ask (same as CalculateEntryPrice tail).
+func ValidateMakerBidPrice(p decimal.Decimal, book *polyws.TopOfBook, tick decimal.Decimal) *decimal.Decimal {
+	if book == nil {
+		return nil
+	}
+	if p.LessThan(decimal.NewFromFloat(0.01)) || p.GreaterThan(decimal.NewFromFloat(0.99)) {
+		return nil
+	}
+	if book.BestAsk != nil && p.GreaterThanOrEqual(*book.BestAsk) {
+		adj := book.BestAsk.Sub(tick)
+		if adj.LessThan(decimal.NewFromFloat(0.01)) {
+			return nil
+		}
+		return &adj
+	}
+	return &p
 }
 
 func (q *QuoteCalculator) HasMinimumEdge(upPrice, downPrice decimal.Decimal, g *config.GabagoolCfg) bool {

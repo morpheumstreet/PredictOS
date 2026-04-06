@@ -10,26 +10,37 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
 	"github.com/shopspring/decimal"
 )
 
 // eventMarketWsTOB must stay aligned with hftevents.MarketWsTOB / Java HftEventTypes.MARKET_WS_TOB.
 const eventMarketWsTOB = "market_ws.tob"
 
+const (
+	defaultTradeHistoryCap = 128
+	liquidityEmaAlpha      = 0.2
+)
+
 type ClobClient struct {
 	baseWsURL string
 	enabled   bool
 
-	mu              sync.RWMutex
-	conn            *websocket.Conn
-	topByAsset      map[string]*TopOfBook
-	subscribed      map[string]struct{}
-	lastMsgAt       time.Time
-	tobEmitter      TOBEventEmitter
-	tobMinInterval  time.Duration
-	snapshotEvery   time.Duration
-	stop            chan struct{}
-	done            sync.WaitGroup
+	mu             sync.RWMutex
+	conn           *websocket.Conn
+	topByAsset     map[string]*TopOfBook
+	subscribed     map[string]struct{}
+	lastMsgAt      time.Time
+	tobEmitter     TOBEventEmitter
+	tobMinInterval time.Duration
+	snapshotEvery  time.Duration
+	stop           chan struct{}
+	done           sync.WaitGroup
+
+	tradesByAsset   map[string][]domain.Trade
+	tradeHistoryCap int
+	bidSizeEMA      map[string]decimal.Decimal
+	askSizeEMA      map[string]decimal.Decimal
 
 	// optional cache path flush - omitted for brevity; Java persists TOB
 }
@@ -39,14 +50,18 @@ func NewClobClient(baseWsURL string, enabled bool, emit TOBEventEmitter, tobMinM
 		emit = noopTOB{}
 	}
 	c := &ClobClient{
-		baseWsURL:      strings.TrimSuffix(strings.TrimSpace(baseWsURL), "/"),
-		enabled:        enabled,
-		topByAsset:     make(map[string]*TopOfBook),
-		subscribed:     make(map[string]struct{}),
-		tobEmitter:     emit,
-		tobMinInterval: time.Duration(tobMinMs) * time.Millisecond,
-		snapshotEvery:  time.Duration(snapshotMs) * time.Millisecond,
-		stop:           make(chan struct{}),
+		baseWsURL:       strings.TrimSuffix(strings.TrimSpace(baseWsURL), "/"),
+		enabled:         enabled,
+		topByAsset:      make(map[string]*TopOfBook),
+		subscribed:      make(map[string]struct{}),
+		tobEmitter:      emit,
+		tobMinInterval:  time.Duration(tobMinMs) * time.Millisecond,
+		snapshotEvery:   time.Duration(snapshotMs) * time.Millisecond,
+		stop:            make(chan struct{}),
+		tradesByAsset:   make(map[string][]domain.Trade),
+		tradeHistoryCap: defaultTradeHistoryCap,
+		bidSizeEMA:      make(map[string]decimal.Decimal),
+		askSizeEMA:      make(map[string]decimal.Decimal),
 	}
 	return c
 }
@@ -86,6 +101,64 @@ func (c *ClobClient) GetTopOfBook(assetID string) (*TopOfBook, bool) {
 	defer c.mu.RUnlock()
 	t, ok := c.topByAsset[strings.TrimSpace(assetID)]
 	return t, ok
+}
+
+// RecentTrades returns the last up to limit trades for an asset (oldest first).
+func (c *ClobClient) RecentTrades(assetID string, limit int) []domain.Trade {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	assetID = strings.TrimSpace(assetID)
+	sl := c.tradesByAsset[assetID]
+	if limit <= 0 || len(sl) == 0 {
+		return nil
+	}
+	if len(sl) <= limit {
+		out := make([]domain.Trade, len(sl))
+		copy(out, sl)
+		return out
+	}
+	return append([]domain.Trade(nil), sl[len(sl)-limit:]...)
+}
+
+// LiquidityEMA returns EMA baselines for top-of-book sizes (for liquidity-drop heuristics).
+func (c *ClobClient) LiquidityEMA(assetID string) (bidEMA, askEMA decimal.Decimal, ok bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	assetID = strings.TrimSpace(assetID)
+	bb, bOk := c.bidSizeEMA[assetID]
+	aa, aOk := c.askSizeEMA[assetID]
+	return bb, aa, bOk || aOk
+}
+
+func (c *ClobClient) recordTradeLocked(assetID string, price *decimal.Decimal, size *decimal.Decimal, side string, ts time.Time) {
+	if assetID == "" || price == nil {
+		return
+	}
+	t := domain.Trade{AssetID: assetID, Price: *price, Size: size, Side: side, Timestamp: ts}
+	sl := c.tradesByAsset[assetID]
+	sl = append(sl, t)
+	capN := c.tradeHistoryCap
+	if capN <= 0 {
+		capN = defaultTradeHistoryCap
+	}
+	if len(sl) > capN {
+		sl = sl[len(sl)-capN:]
+	}
+	c.tradesByAsset[assetID] = sl
+}
+
+func updateSizeEMA(m map[string]decimal.Decimal, id string, val *decimal.Decimal, alpha float64) {
+	if val == nil || id == "" {
+		return
+	}
+	prev, ok := m[id]
+	if !ok {
+		m[id] = *val
+		return
+	}
+	a := decimal.NewFromFloat(alpha)
+	one := decimal.NewFromInt(1)
+	m[id] = a.Mul(*val).Add(one.Sub(a).Mul(prev))
 }
 
 func (c *ClobClient) StartBackground() {
@@ -260,6 +333,9 @@ func (c *ClobClient) handleBook(v map[string]any) {
 		if prevLT == nil || !ltp.Equal(*prevLT) {
 			t := now
 			nextLTA = &t
+			sz := parseDec(stringField(v, "size"))
+			side := strings.TrimSpace(stringField(v, "side"))
+			c.recordTradeLocked(assetID, ltp, sz, side, now)
 		}
 	}
 	bidS := bbs
@@ -272,6 +348,8 @@ func (c *ClobClient) handleBook(v map[string]any) {
 			askS = prev.BestAskSize
 		}
 	}
+	updateSizeEMA(c.bidSizeEMA, assetID, bidS, liquidityEmaAlpha)
+	updateSizeEMA(c.askSizeEMA, assetID, askS, liquidityEmaAlpha)
 	tob := &TopOfBook{BestBid: bb, BestAsk: ba, BestBidSize: bidS, BestAskSize: askS, LastTradePrice: nextLT, UpdatedAt: &now, LastTradeAt: nextLTA}
 	c.topByAsset[assetID] = tob
 	c.maybePublishTOB(assetID, tob)
@@ -304,6 +382,8 @@ func (c *ClobClient) handlePriceChange(v map[string]any) {
 			ltp = prev.LastTradePrice
 			lta = prev.LastTradeAt
 		}
+		updateSizeEMA(c.bidSizeEMA, assetID, bbs, liquidityEmaAlpha)
+		updateSizeEMA(c.askSizeEMA, assetID, bas, liquidityEmaAlpha)
 		tob := &TopOfBook{BestBid: bb, BestAsk: ba, BestBidSize: bbs, BestAskSize: bas, LastTradePrice: ltp, UpdatedAt: &now, LastTradeAt: lta}
 		c.topByAsset[assetID] = tob
 		c.maybePublishTOB(assetID, tob)
@@ -317,13 +397,22 @@ func (c *ClobClient) handleLastTrade(v map[string]any) {
 		return
 	}
 	price := parseDec(stringField(v, "price"))
+	sz := parseDec(stringField(v, "size"))
+	side := strings.TrimSpace(stringField(v, "side"))
 	now := time.Now().UTC()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.recordTradeLocked(assetID, price, sz, side, now)
 	prev := c.topByAsset[assetID]
 	var bb, ba, bbs, bas *decimal.Decimal
 	if prev != nil {
 		bb, ba, bbs, bas = prev.BestBid, prev.BestAsk, prev.BestBidSize, prev.BestAskSize
+	}
+	if bbs != nil {
+		updateSizeEMA(c.bidSizeEMA, assetID, bbs, liquidityEmaAlpha)
+	}
+	if bas != nil {
+		updateSizeEMA(c.askSizeEMA, assetID, bas, liquidityEmaAlpha)
 	}
 	tob := &TopOfBook{
 		BestBid: bb, BestAsk: ba, BestBidSize: bbs, BestAskSize: bas,

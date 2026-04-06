@@ -66,7 +66,8 @@ func main() {
 	runID := gabagool.RandomRunID()
 	om := gabagool.NewOrderManager(ex, pub, runID)
 	disc := gabagool.NewDiscovery(root, gc)
-	eng := gabagool.NewEngine(root, wsClient, ex, disc, met, om)
+	mmb := wiring.NewMarketMakerBundle(root, wsClient)
+	eng := gabagool.NewEngine(root, wsClient, ex, disc, met, om, mmb.UseCase)
 	gcfg := &root.Hft.Strategy.Gabagool
 	eng.Start()
 	defer eng.Stop()

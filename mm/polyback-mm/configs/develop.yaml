@@ -54,6 +54,19 @@ hft:
       taker_mode_enabled: false
       taker_mode_max_edge: 0.02
       taker_mode_max_spread: 0.05
+    market_maker:
+      enabled: false
+      trade_window_millis: 2000
+      burst_trade_count: 5
+      impact_spread_multiple: 2
+      liquidity_drop_ratio: 0.35
+      toxicity_penalty_max: 0.015
+      toxicity_unsafe_burst: 12
+      base_spread: 0.04
+      vol_spread_bonus: 0
+      imbalance_skew_scale: 0.02
+      noise_sigma: 0.001
+      noise_max_ticks: 1
   risk:
     kill_switch: false
     max_order_notional_usd: 0
