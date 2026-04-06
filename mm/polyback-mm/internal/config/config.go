@@ -80,6 +80,11 @@ type MarketMakerCfg struct {
 	BaseSpread     float64 `yaml:"base_spread"`
 	VolSpreadBonus float64 `yaml:"vol_spread_bonus"`
 
+	// EWMA dynamic spread (0 scale = disabled). Addon is added to base+vol_spread_bonus before half-spread.
+	EwmaVolLambda       float64 `yaml:"ewma_vol_lambda"`
+	EwmaVolSpreadScale  float64 `yaml:"ewma_vol_spread_scale"`
+	EwmaVolSpreadMax    float64 `yaml:"ewma_vol_spread_max"`
+
 	ImbalanceSkewScale float64 `yaml:"imbalance_skew_scale"`
 
 	NoiseSigma    float64 `yaml:"noise_sigma"`

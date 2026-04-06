@@ -13,6 +13,7 @@ The first integrated slice is **live in-tree** with a **pull-based** data path: 
 | Application | [`usecase.go`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) |
 | WS adapter | [`ws_provider.go`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) |
 | Quoting + toxicity | [`quoting/`](../../mm/polyback-mm/internal/strategy/quoting/), [`toxicity/`](../../mm/polyback-mm/internal/strategy/toxicity/) |
+| EWMA volatility (dynamic spread) | [`volatility/tracker.go`](../../mm/polyback-mm/internal/strategy/volatility/tracker.go), port [`volatility_spread.go`](../../mm/polyback-mm/internal/ports/input/volatility_spread.go); add-on is folded into half-spread in [`engine.go`](../../mm/polyback-mm/internal/strategy/quoting/engine.go). YAML: `ewma_vol_lambda`, `ewma_vol_spread_scale` (**`0` = off**), `ewma_vol_spread_max`. |
 | Risk | [`mm_evaluator.go`](../../mm/polyback-mm/internal/strategy/risk/mm_evaluator.go) |
 | Wiring | [`marketmaker_wiring.go`](../../mm/polyback-mm/internal/wiring/marketmaker_wiring.go) |
 | WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA` |

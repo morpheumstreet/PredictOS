@@ -15,12 +15,13 @@ import (
 // Engine implements ports/input.QuotingEngine (study.md-style bid/ask construction).
 type Engine struct {
 	cfg config.MarketMakerCfg
+	vol input.VolatilitySpread // optional; nil skips dynamic EWMA spread
 }
 
 var _ input.QuotingEngine = (*Engine)(nil)
 
-func NewEngine(cfg config.MarketMakerCfg) *Engine {
-	return &Engine{cfg: cfg}
+func NewEngine(cfg config.MarketMakerCfg, vol input.VolatilitySpread) *Engine {
+	return &Engine{cfg: cfg, vol: vol}
 }
 
 func (e *Engine) GenerateQuote(snapshot *domain.MarketSnapshot, pos *domain.MMPosition, tox domain.ToxicitySignal, tickSize decimal.Decimal) (domain.MMQuote, error) {
@@ -40,7 +41,7 @@ func (e *Engine) GenerateQuote(snapshot *domain.MarketSnapshot, pos *domain.MMPo
 		skewTicks = pos.SkewTicks
 	}
 
-	half := e.halfSpread()
+	half := e.halfSpread(snapshot.AssetID, fair)
 	bid := fair.Sub(half)
 	ask := fair.Add(half)
 
@@ -70,17 +71,21 @@ func (e *Engine) GenerateQuote(snapshot *domain.MarketSnapshot, pos *domain.MMPo
 	return domain.MMQuote{Fair: fair, Spread: spread, Bid: bid, Ask: ask}, nil
 }
 
-func (e *Engine) halfSpread() decimal.Decimal {
+// halfSpread is half of (base_spread + vol_spread_bonus + dynamic EWMA addon).
+func (e *Engine) halfSpread(assetID string, fair decimal.Decimal) decimal.Decimal {
 	base := e.cfg.BaseSpread
 	if base <= 0 {
 		base = 0.04
 	}
-	vol := e.cfg.VolSpreadBonus
-	if vol < 0 {
-		vol = 0
+	vb := e.cfg.VolSpreadBonus
+	if vb < 0 {
+		vb = 0
 	}
-	s := (base + vol) / 2
-	return decimal.NewFromFloat(s)
+	total := decimal.NewFromFloat(base + vb)
+	if e.vol != nil {
+		total = total.Add(e.vol.SpreadAddon(assetID, fair))
+	}
+	return total.Div(decimal.NewFromInt(2))
 }
 
 func (e *Engine) imbalanceScale() float64 {

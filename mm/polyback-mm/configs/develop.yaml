@@ -64,6 +64,9 @@ hft:
       toxicity_unsafe_burst: 12
       base_spread: 0.04
       vol_spread_bonus: 0
+      ewma_vol_lambda: 0.94
+      ewma_vol_spread_scale: 0
+      ewma_vol_spread_max: 0.08
       imbalance_skew_scale: 0.02
       noise_sigma: 0.001
       noise_max_ticks: 1

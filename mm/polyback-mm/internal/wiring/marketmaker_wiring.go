@@ -8,6 +8,7 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/quoting"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/risk"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/toxicity"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/volatility"
 )
 
 // MarketMakerBundle wires study.md MM use case from the CLOB WebSocket client.
@@ -23,7 +24,8 @@ func NewMarketMakerBundle(root *config.Root, clob *polyws.ClobClient) *MarketMak
 	mm := root.Hft.Strategy.MarketMaker
 	mdp := marketdata.NewWSProvider(clob, 0)
 	tox := toxicity.NewDetector(mm)
-	qe := quoting.NewEngine(mm)
+	volTr := volatility.NewTracker(mm)
+	qe := quoting.NewEngine(mm, volTr)
 	riskEv := risk.NewMMEvaluator(root)
 	uc := marketmaker.NewUseCase(mdp, tox, qe, riskEv)
 	return &MarketMakerBundle{UseCase: uc}
