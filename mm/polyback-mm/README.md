@@ -2,6 +2,14 @@
 
 Go port of [polybot-main](../polybot-main) trading services: executor, strategy, ingestor, analytics, and infrastructure orchestrator. Kafka topic and HTTP routes follow the Java services so you can mix Go and Java during migration.
 
+## Design (SOLID-oriented)
+
+- **Ports** ([internal/executor/ports](internal/executor/ports)): HTTP depends on `OrderSimulator`, not on `*paper.Simulator` (DIP).
+- **Feeds** ([internal/polymarket/ws/ports.go](internal/polymarket/ws/ports.go)): `MarketFeed` / `TOBEventEmitter` keep WebSocket code free of full Kafka client concerns (ISP).
+- **Wiring** ([internal/wiring](internal/wiring)): composition-only adapters (e.g. `TOBFromPublisher`) live at the edge, not inside domain packages.
+- **HTTP** ([internal/executor/httpapi/handler.go](internal/executor/httpapi/handler.go)): `Polymarket` handler + `orderNotifier` separate transport from event publishing (SRP).
+- **Metrics**: Prometheus counters are constructed explicitly and injected, not package globals (testability).
+
 ## Build
 
 ```bash

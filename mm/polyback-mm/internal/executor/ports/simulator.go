@@ -1,3 +1,4 @@
+// Package ports defines executor-facing interfaces so HTTP and simulation stay decoupled (DIP).
 package ports
 
 import (
