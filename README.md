@@ -111,6 +111,8 @@ Predict Super Intelligence operates through a sophisticated **agent pipeline**:
 
 ## 🎯 Current Features (v2.4.0)
 
+**Feature documentation index:** [docs/features/README.md](docs/features/README.md) — overview of this folder and how each setup guide fits together.
+
 | Feature | Status | Description | Setup Guide |
 |---------|--------|-------------|-------------|
 | **🌐 Supported Markets** | ✅ Released | **Kalshi**, **Polymarket**, and **Jupiter** (Kalshi-based). Data powered by [DFlow](https://pond.dflow.net/introduction) (Kalshi/Jupiter) and [Dome](https://domeapi.io/) (Polymarket). | — |
