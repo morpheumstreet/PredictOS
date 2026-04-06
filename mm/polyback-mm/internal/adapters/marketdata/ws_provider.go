@@ -77,5 +77,23 @@ func topToL2(assetID string, t *polyws.TopOfBook, emaBid, emaAsk *decimal.Decima
 		LastTradePrice: t.LastTradePrice,
 		EMABidSize:     emaBid,
 		EMAAskSize:     emaAsk,
+		BidLevels:      wsLevelsToDomain(t.BidLevels),
+		AskLevels:      wsLevelsToDomain(t.AskLevels),
 	}
+}
+
+func wsLevelsToDomain(in []polyws.BookLevel) []domain.PriceLevel {
+	var out []domain.PriceLevel
+	for _, x := range in {
+		if x.Price == nil {
+			continue
+		}
+		p := *x.Price
+		sz := decimal.Zero
+		if x.Size != nil {
+			sz = *x.Size
+		}
+		out = append(out, domain.PriceLevel{Price: p, Size: sz})
+	}
+	return out
 }

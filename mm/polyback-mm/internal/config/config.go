@@ -89,6 +89,16 @@ type MarketMakerCfg struct {
 
 	NoiseSigma    float64 `yaml:"noise_sigma"`
 	NoiseMaxTicks int     `yaml:"noise_max_ticks"`
+
+	// Depth pause: stop quoting a side when top size vs EMA indicates sudden thinning.
+	DepthPauseEnabled   bool    `yaml:"depth_pause_enabled"`
+	DepthPauseDropRatio float64 `yaml:"depth_pause_drop_ratio"` // 0 = reuse liquidity_drop_ratio
+	DepthPauseFallback  bool    `yaml:"depth_pause_fallback"`   // true = fall back to legacy when bid paused
+
+	// VPIN-style imbalance on recent trades (requires size + side on trades).
+	VpinEnabled                bool    `yaml:"vpin_enabled"`
+	VpinMinTrades              int     `yaml:"vpin_min_trades"`
+	VpinImbalanceThreshold     float64 `yaml:"vpin_imbalance_threshold"` // 0–1, mark unsafe if exceeded
 }
 
 type GabagoolCfg struct {

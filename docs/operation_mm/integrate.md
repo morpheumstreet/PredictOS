@@ -16,7 +16,12 @@ The first integrated slice is **live in-tree** with a **pull-based** data path: 
 | EWMA volatility (dynamic spread) | [`volatility/tracker.go`](../../mm/polyback-mm/internal/strategy/volatility/tracker.go), port [`volatility_spread.go`](../../mm/polyback-mm/internal/ports/input/volatility_spread.go); add-on is folded into half-spread in [`engine.go`](../../mm/polyback-mm/internal/strategy/quoting/engine.go). YAML: `ewma_vol_lambda`, `ewma_vol_spread_scale` (**`0` = off**), `ewma_vol_spread_max`. |
 | Risk | [`mm_evaluator.go`](../../mm/polyback-mm/internal/strategy/risk/mm_evaluator.go) |
 | Wiring | [`marketmaker_wiring.go`](../../mm/polyback-mm/internal/wiring/marketmaker_wiring.go) |
-| WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA` |
+| WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA`, optional L2 `BidLevels`/`AskLevels`, [`RegisterBookListener`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) |
+| Depth pause | [`depth/monitor.go`](../../mm/polyback-mm/internal/strategy/depth/monitor.go); YAML `depth_pause_*` |
+| VPIN-lite | [`toxicity/vpin.go`](../../mm/polyback-mm/internal/strategy/toxicity/vpin.go); YAML `vpin_*` |
+| Push snapshots | [`snapshots_subscribe.go`](../../mm/polyback-mm/internal/adapters/marketdata/snapshots_subscribe.go) |
+| Event stub | [`event_listener.go`](../../mm/polyback-mm/internal/polymarket/ws/event_listener.go) |
+| Order notional | [`risk/order_notional.go`](../../mm/polyback-mm/internal/strategy/risk/order_notional.go) (used in [`engine.go`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) `maybeQuoteToken`) |
 | Config | `hft.strategy.market_maker` in YAML (see [`develop.yaml`](../../mm/polyback-mm/configs/develop.yaml)); default **`enabled: false`** |
 
 **Phase 2:** add a push-based `Run(ctx)` + `SubscribeL2` once the WS client can deliver snapshots without duplicating the strategy ticker; persist full L2, VPIN, one-sided depth pause, and news-driven withdraw as separate packages per the target layout below.

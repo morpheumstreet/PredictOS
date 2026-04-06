@@ -22,4 +22,7 @@ type ToxicitySignal struct {
 	BidPenalty       decimal.Decimal
 	AskPenalty       decimal.Decimal
 	Unsafe           bool
+	// PauseBidQuotes / PauseAskQuotes: depth collapse vs EMA; maker should not quote that side.
+	PauseBidQuotes bool
+	PauseAskQuotes bool
 }

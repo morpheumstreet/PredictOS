@@ -70,6 +70,12 @@ hft:
       imbalance_skew_scale: 0.02
       noise_sigma: 0.001
       noise_max_ticks: 1
+      depth_pause_enabled: false
+      depth_pause_drop_ratio: 0
+      depth_pause_fallback: true
+      vpin_enabled: false
+      vpin_min_trades: 5
+      vpin_imbalance_threshold: 0.85
   risk:
     kill_switch: false
     max_order_notional_usd: 0

@@ -27,6 +27,6 @@ func NewMarketMakerBundle(root *config.Root, clob *polyws.ClobClient) *MarketMak
 	volTr := volatility.NewTracker(mm)
 	qe := quoting.NewEngine(mm, volTr)
 	riskEv := risk.NewMMEvaluator(root)
-	uc := marketmaker.NewUseCase(mdp, tox, qe, riskEv)
+	uc := marketmaker.NewUseCase(mdp, tox, qe, riskEv, mm)
 	return &MarketMakerBundle{UseCase: uc}
 }

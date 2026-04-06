@@ -42,8 +42,12 @@ type ClobClient struct {
 	bidSizeEMA      map[string]decimal.Decimal
 	askSizeEMA      map[string]decimal.Decimal
 
+	bookListeners []func(assetID string)
+
 	// optional cache path flush - omitted for brevity; Java persists TOB
 }
+
+const maxBookLevels = 20
 
 func NewClobClient(baseWsURL string, enabled bool, emit TOBEventEmitter, tobMinMs, snapshotMs int64) *ClobClient {
 	if emit == nil {
@@ -306,6 +310,16 @@ func (c *ClobClient) handleAny(node any) {
 	}
 }
 
+// RegisterBookListener is called after each full book update for an asset (best-effort, async).
+func (c *ClobClient) RegisterBookListener(fn func(assetID string)) {
+	if fn == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.bookListeners = append(c.bookListeners, fn)
+}
+
 func (c *ClobClient) handleBook(v map[string]any) {
 	assetID, _ := v["asset_id"].(string)
 	if assetID == "" {
@@ -313,12 +327,15 @@ func (c *ClobClient) handleBook(v map[string]any) {
 	}
 	bids := levelArray(v, "bids", "buys")
 	asks := levelArray(v, "asks", "sells")
+	bidLv := parseBookLevels(bids, true, maxBookLevels)
+	askLv := parseBookLevels(asks, false, maxBookLevels)
 	bb, bbs := bestLevel(bids, true)
 	ba, bas := bestLevel(asks, false)
 	ltp := parseDec(stringField(v, "last_trade_price"))
 	now := time.Now().UTC()
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	var listenersCopy []func(string)
+	listenersCopy = append(listenersCopy, c.bookListeners...)
 	prev := c.topByAsset[assetID]
 	var prevLT *decimal.Decimal
 	var prevLTA *time.Time
@@ -350,9 +367,19 @@ func (c *ClobClient) handleBook(v map[string]any) {
 	}
 	updateSizeEMA(c.bidSizeEMA, assetID, bidS, liquidityEmaAlpha)
 	updateSizeEMA(c.askSizeEMA, assetID, askS, liquidityEmaAlpha)
-	tob := &TopOfBook{BestBid: bb, BestAsk: ba, BestBidSize: bidS, BestAskSize: askS, LastTradePrice: nextLT, UpdatedAt: &now, LastTradeAt: nextLTA}
+	tob := &TopOfBook{
+		BestBid: bb, BestAsk: ba, BestBidSize: bidS, BestAskSize: askS,
+		LastTradePrice: nextLT, UpdatedAt: &now, LastTradeAt: nextLTA,
+		BidLevels: bidLv, AskLevels: askLv,
+	}
 	c.topByAsset[assetID] = tob
 	c.maybePublishTOB(assetID, tob)
+	c.mu.Unlock()
+	for _, fn := range listenersCopy {
+		if fn != nil {
+			fn(assetID)
+		}
+	}
 }
 
 func (c *ClobClient) handlePriceChange(v map[string]any) {
@@ -521,6 +548,39 @@ func parseDec(s string) *decimal.Decimal {
 		return nil
 	}
 	return &d
+}
+
+func parseBookLevels(levels []any, bids bool, maxN int) []BookLevel {
+	type pair struct {
+		p, s *decimal.Decimal
+	}
+	var raw []pair
+	for _, lv := range levels {
+		m, ok := lv.(map[string]any)
+		if !ok {
+			continue
+		}
+		p := parseDec(stringField(m, "price"))
+		if p == nil {
+			continue
+		}
+		sz := parseDec(stringField(m, "size"))
+		raw = append(raw, pair{p, sz})
+	}
+	sort.Slice(raw, func(i, j int) bool {
+		if bids {
+			return raw[i].p.GreaterThan(*raw[j].p)
+		}
+		return raw[i].p.LessThan(*raw[j].p)
+	})
+	if len(raw) > maxN {
+		raw = raw[:maxN]
+	}
+	out := make([]BookLevel, len(raw))
+	for i := range raw {
+		out[i] = BookLevel{Price: raw[i].p, Size: raw[i].s}
+	}
+	return out
 }
 
 func bestLevel(levels []any, bestIsMax bool) (*decimal.Decimal, *decimal.Decimal) {

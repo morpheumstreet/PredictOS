@@ -19,4 +19,7 @@ type OrderBookL2 struct {
 	// EMA baselines for size (from feed); used for liquidity-drop toxicity.
 	EMABidSize *decimal.Decimal
 	EMAAskSize *decimal.Decimal
+	// Optional top-of-book depth from WS (see polymarket/ws TopOfBook.BidLevels).
+	BidLevels []PriceLevel
+	AskLevels []PriceLevel
 }

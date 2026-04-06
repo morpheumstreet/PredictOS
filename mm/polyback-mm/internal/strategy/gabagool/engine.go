@@ -14,6 +14,7 @@ import (
 	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/risk"
 	"github.com/shopspring/decimal"
 )
 
@@ -273,10 +274,13 @@ func (e *Engine) maybeQuoteToken(m *Market, tokenID string, dir Direction, book,
 	mmCfg := e.root.Hft.Strategy.MarketMaker
 	if e.mm != nil && mmCfg.Enabled {
 		pos := &domain.MMPosition{MarketSlug: m.Slug, AssetID: tokenID, SkewTicks: skew}
-		bid, ok, _, err := e.mm.MakerBid(context.Background(), tokenID, *tick, pos)
+		bid, ok, tox, err := e.mm.MakerBid(context.Background(), tokenID, *tick, pos)
 		if err == nil && ok {
 			rt := RoundToTick(bid, *tick, false)
 			entry = ValidateMakerBidPrice(rt, book, *tick)
+		}
+		if err == nil && !ok && mmCfg.DepthPauseEnabled && tox.PauseBidQuotes && !mmCfg.DepthPauseFallback {
+			return
 		}
 	}
 	if entry == nil {
@@ -288,6 +292,9 @@ func (e *Engine) maybeQuoteToken(m *Market, tokenID string, dir Direction, book,
 	exposure := e.qc.CalculateExposure(e.om.OpenOrders(), e.pos.AllInventories())
 	shares := e.qc.CalculateShares(m, *entry, g, sec, exposure)
 	if shares == nil {
+		return
+	}
+	if n := entry.Mul(*shares); !risk.OrderNotionalAllowed(e.root, n) {
 		return
 	}
 	existing := e.om.GetOrder(tokenID)
