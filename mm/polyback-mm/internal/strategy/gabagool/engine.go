@@ -499,3 +499,11 @@ func (e *Engine) ActiveMarketCount() int {
 	defer e.mu.RUnlock()
 	return len(e.active)
 }
+
+// MarketMakerEnabled reports whether study.md quoting+toxicity path is active (YAML hft.strategy.market_maker.enabled).
+func (e *Engine) MarketMakerEnabled() bool {
+	if e == nil || e.root == nil {
+		return false
+	}
+	return e.root.Hft.Strategy.MarketMaker.Enabled
+}
