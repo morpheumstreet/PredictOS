@@ -93,6 +93,7 @@ const (
 	CancelReplaceSize     CancelReason = "REPLACE_SIZE"
 	CancelReplaceBoth     CancelReason = "REPLACE_PRICE_AND_SIZE"
 	CancelStaleTimeout    CancelReason = "STALE_TIMEOUT"
+	CancelRiskOff         CancelReason = "EXTERNAL_RISK_OFF"
 )
 
 type ReplaceDecision int

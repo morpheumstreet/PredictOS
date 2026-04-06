@@ -7,25 +7,16 @@ import (
 	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
 )
 
-// SubscribeSnapshots emits a snapshot each time the CLOB client applies a full book update for an asset.
-// The channel is not closed on ctx cancel (listeners are process-lifetime); stop consuming when ctx is done.
-func SubscribeSnapshots(ctx context.Context, clob *polyws.ClobClient, mdp *WSProvider) <-chan domain.MarketSnapshot {
-	out := make(chan domain.MarketSnapshot, 256)
-	if clob == nil || mdp == nil {
-		return out
+// SubscribeSnapshots is equivalent to (*WSProvider).SubscribeL2. The CLOB argument is unused;
+// the provider must have been built with the same client you use for subscriptions.
+// Prefer calling SubscribeL2 on WSProvider directly.
+func SubscribeSnapshots(ctx context.Context, _ *polyws.ClobClient, mdp *WSProvider) <-chan domain.MarketSnapshot {
+	if mdp == nil {
+		return make(chan domain.MarketSnapshot)
 	}
-	clob.RegisterBookListener(func(assetID string) {
-		if ctx.Err() != nil {
-			return
-		}
-		snap, ok := mdp.Snapshot(ctx, assetID)
-		if !ok {
-			return
-		}
-		select {
-		case out <- snap:
-		default:
-		}
-	})
-	return out
+	ch, err := mdp.SubscribeL2(ctx)
+	if err != nil {
+		return make(chan domain.MarketSnapshot)
+	}
+	return ch
 }

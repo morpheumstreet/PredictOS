@@ -17,6 +17,20 @@ type fakeClob struct {
 	emaBid decimal.Decimal
 	emaAsk decimal.Decimal
 	emaOk  bool
+	listeners []func(assetID string)
+}
+
+func (f *fakeClob) RegisterBookListener(fn func(assetID string)) {
+	if f == nil || fn == nil {
+		return
+	}
+	f.listeners = append(f.listeners, fn)
+}
+
+func (f *fakeClob) fireBook(assetID string) {
+	for _, fn := range f.listeners {
+		fn(assetID)
+	}
 }
 
 func (f *fakeClob) GetTopOfBook(assetID string) (*polyws.TopOfBook, bool) {
@@ -83,5 +97,41 @@ func TestWSProvider_Snapshot_emptyAssetID(t *testing.T) {
 	_, ok := p.Snapshot(context.Background(), "  ")
 	if ok {
 		t.Fatal("expected miss")
+	}
+}
+
+func TestWSProvider_SubscribeL2_emitsOnBookUpdate(t *testing.T) {
+	bb := decimal.RequireFromString("0.48")
+	ba := decimal.RequireFromString("0.52")
+	bs := decimal.RequireFromString("100")
+	asz := decimal.RequireFromString("90")
+	now := time.Now().UTC()
+	tob := &polyws.TopOfBook{
+		BestBid: &bb, BestAsk: &ba, BestBidSize: &bs, BestAskSize: &asz,
+		UpdatedAt: &now,
+	}
+	f := &fakeClob{tob: tob, have: true, trades: []domain.Trade{{AssetID: "tok1", Price: decimal.RequireFromString("0.5"), Timestamp: now}}}
+	p := NewWSProvider(f, 10)
+	ctx := context.Background()
+	ch, err := p.SubscribeL2(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.fireBook("tok1")
+	select {
+	case snap := <-ch:
+		if snap.AssetID != "tok1" {
+			t.Fatalf("asset: %q", snap.AssetID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for snapshot")
+	}
+}
+
+func TestWSProvider_SubscribeL2_nilClob(t *testing.T) {
+	p := &WSProvider{}
+	_, err := p.SubscribeL2(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

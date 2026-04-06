@@ -4,27 +4,31 @@ This is **not** a rewrite — it is a clean **extension** of what you already ha
 
 ### Implementation status (evolutionary slice)
 
-The first integrated slice is **live in-tree** with a **pull-based** data path: there is no `SubscribeL2` channel loop yet; `gabagool.Engine` still runs on its refresh ticker. When `hft.strategy.market_maker.enabled` is `true`, [`maybeQuoteToken`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) asks [`marketmaker.UseCase.MakerBid`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) for a bid; on failure or `ok == false` it **falls back** to [`QuoteCalculator.CalculateEntryPrice`](../../mm/polyback-mm/internal/strategy/gabagool/quotecalc.go).
+**Quoting path:** [`gabagool.Engine`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) runs a **refresh ticker** (always). When `hft.strategy.market_maker.enabled` is `true`, [`maybeQuoteToken`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) asks [`marketmaker.UseCase.MakerBid`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) for a bid; on failure or `ok == false` it **falls back** to [`QuoteCalculator.CalculateEntryPrice`](../../mm/polyback-mm/internal/strategy/gabagool/quotecalc.go).
+
+**Push path (optional):** [`MarketDataProvider.SubscribeL2`](../../mm/polyback-mm/internal/ports/input/market_data_provider.go) on [`WSProvider`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) registers [`RegisterBookListener`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) and emits [`domain.MarketSnapshot`](../../mm/polyback-mm/internal/domain/) per book update. When `hft.strategy.market_maker.push_refresh_enabled` is `true`, [`cmd/strategy/main.go`](../../mm/polyback-mm/cmd/strategy/main.go) consumes that channel and calls [`Engine.SchedulePushEvaluate`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) (debounced per asset) → [`EvaluateAssetID`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) → same `evaluateMarket` / `MakerBid` path as the ticker. The ticker remains a safety net unless you later add `push_refresh_only` behavior.
 
 | Area | Location |
 |------|-----------|
 | Domain (MM types) | [`../../mm/polyback-mm/internal/domain/`](../../mm/polyback-mm/internal/domain/) — `trade.go`, `orderbook_l2.go`, `market_snapshot.go`, `position_mm.go`, `toxicity_signal.go`, `quote_mm.go` |
-| Ports | [`../../mm/polyback-mm/internal/ports/input/`](../../mm/polyback-mm/internal/ports/input/), [`polymarket_executor.go`](../../mm/polyback-mm/internal/ports/output/polymarket_executor.go) (stub) |
-| Application | [`usecase.go`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) |
+| Ports | [`../../mm/polyback-mm/internal/ports/input/`](../../mm/polyback-mm/internal/ports/input/) (`market_data_provider.go` includes `SubscribeL2`), [`polymarket_executor.go`](../../mm/polyback-mm/internal/ports/output/polymarket_executor.go) |
+| Outbound adapter | [`../../mm/polyback-mm/internal/adapters/executor/polymarket_executor.go`](../../mm/polyback-mm/internal/adapters/executor/polymarket_executor.go) implements the port via [`executorclient`](../../mm/polyback-mm/internal/strategy/executorclient/client.go) (gabagool still uses `executorclient` directly today) |
+| Application | [`usecase.go`](../../mm/polyback-mm/internal/application/marketmaker/usecase.go) (`MakerBid`, `SubscribeL2`) |
 | WS adapter | [`ws_provider.go`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) |
 | Quoting + toxicity | [`quoting/`](../../mm/polyback-mm/internal/strategy/quoting/), [`toxicity/`](../../mm/polyback-mm/internal/strategy/toxicity/) |
-| EWMA volatility (dynamic spread) | [`volatility/tracker.go`](../../mm/polyback-mm/internal/strategy/volatility/tracker.go), port [`volatility_spread.go`](../../mm/polyback-mm/internal/ports/input/volatility_spread.go); add-on is folded into half-spread in [`engine.go`](../../mm/polyback-mm/internal/strategy/quoting/engine.go). YAML: `ewma_vol_lambda`, `ewma_vol_spread_scale` (**`0` = off**), `ewma_vol_spread_max`. |
+| EWMA volatility (dynamic spread) | [`volatility/tracker.go`](../../mm/polyback-mm/internal/strategy/volatility/tracker.go), port [`volatility_spread.go`](../../mm/polyback-mm/internal/ports/input/volatility_spread.go); add-on is folded into half-spread in [`quoting/engine.go`](../../mm/polyback-mm/internal/strategy/quoting/engine.go). YAML: `ewma_vol_lambda`, `ewma_vol_spread_scale` (**`0` = off**), `ewma_vol_spread_max`. |
 | Risk | [`mm_evaluator.go`](../../mm/polyback-mm/internal/strategy/risk/mm_evaluator.go) |
-| Wiring | [`marketmaker_wiring.go`](../../mm/polyback-mm/internal/wiring/marketmaker_wiring.go) |
-| WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA`, optional L2 `BidLevels`/`AskLevels`, [`RegisterBookListener`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) |
+| Wiring | [`marketmaker_wiring.go`](../../mm/polyback-mm/internal/wiring/marketmaker_wiring.go) (exposes `MDP` = `*WSProvider`) |
+| WS feed (trades + EMA) | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go) — `RecentTrades`, `LiquidityEMA`, optional L2 `BidLevels`/`AskLevels`, `RegisterBookListener` |
 | Depth pause | [`depth/monitor.go`](../../mm/polyback-mm/internal/strategy/depth/monitor.go); YAML `depth_pause_*` |
 | VPIN-lite | [`toxicity/vpin.go`](../../mm/polyback-mm/internal/strategy/toxicity/vpin.go); YAML `vpin_*` |
-| Push snapshots | [`snapshots_subscribe.go`](../../mm/polyback-mm/internal/adapters/marketdata/snapshots_subscribe.go) |
-| Event stub | [`event_listener.go`](../../mm/polyback-mm/internal/polymarket/ws/event_listener.go) |
-| Order notional | [`risk/order_notional.go`](../../mm/polyback-mm/internal/strategy/risk/order_notional.go) (used in [`engine.go`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) `maybeQuoteToken`) |
-| Config | `hft.strategy.market_maker` in YAML (see [`develop.yaml`](../../mm/polyback-mm/configs/develop.yaml)); default **`enabled: false`** |
+| Push / SubscribeL2 | [`ws_provider.go`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) `SubscribeL2`; legacy wrapper [`snapshots_subscribe.go`](../../mm/polyback-mm/internal/adapters/marketdata/snapshots_subscribe.go) |
+| TWAP chunk cap | [`twap/splitter.go`](../../mm/polyback-mm/internal/strategy/twap/splitter.go); YAML `twap_enabled`, `twap_max_chunk_shares` (caps one quote per tick; remainder on later ticks/push) |
+| Event feed (HTTP poll) | [`event_listener.go`](../../mm/polyback-mm/internal/polymarket/ws/event_listener.go); YAML `hft.polymarket.event_feed.*` — body hash change → [`CancelAllOrders`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) with `EXTERNAL_RISK_OFF` |
+| Order notional | [`risk/order_notional.go`](../../mm/polyback-mm/internal/strategy/risk/order_notional.go) (used in `maybeQuoteToken`) |
+| Config | `hft.strategy.market_maker`, `hft.polymarket.event_feed` (see [`develop.yaml`](../../mm/polyback-mm/configs/develop.yaml)); MM default **`enabled: false`** |
 
-**Phase 2:** add a push-based `Run(ctx)` + `SubscribeL2` once the WS client can deliver snapshots without duplicating the strategy ticker; persist full L2, VPIN, one-sided depth pause, and news-driven withdraw as separate packages per the target layout below.
+**Deferred / follow-up:** persist **full** L2 books and VPIN time series to ClickHouse (or dedicated Kafka topics); inventory as a separate `strategy/inventory` package; cross-market hedge adapter. TOB/order lifecycle already flows through Kafka → ingest for analytics.
 
 ### 1. Architecture Principles (strictly followed)
 - **Clean Architecture** (ports & adapters / hexagonal):  
@@ -119,9 +123,10 @@ type QuotingEngine interface {
     GenerateQuote(snapshot domain.MarketSnapshot) (domain.Quote, error)
 }
 
-// ports/input/data_feed_port.go
+// ports/input/market_data_provider.go
 type MarketDataProvider interface {
-    SubscribeL2(ctx context.Context) (<-chan domain.OrderBook, error)
+    Snapshot(ctx context.Context, assetID string) (domain.MarketSnapshot, bool)
+    SubscribeL2(ctx context.Context) (<-chan domain.MarketSnapshot, error)
 }
 
 // strategy/quoting/engine.go (implements above)
@@ -158,34 +163,34 @@ ask := fairPrice
 Volatility.EWMA() automatically widens `spread` when vol spikes.  
 DepthMonitor pauses one side if liquidity thins suddenly.
 
-### 5. Requirement → Implementation Mapping (100% covered)
+### 5. Requirement → Implementation Mapping
 
 | study.md Requirement                  | Where it lives                              | Status |
 |---------------------------------------|---------------------------------------------|--------|
-| WebSocket real-time (L2 + trades)     | adapters/polymarket/ws/l2_client.go         | Full |
-| Volatility adjustment (EWMA)          | strategy/volatility/ewma.go                 | Full |
-| Order-book depth analysis + pause     | strategy/depth/monitor.go                   | Full |
-| News/event monitor + auto-withdraw    | adapters/polymarket/event_listener.go       | Full |
-| Max position ≤30% per side            | strategy/risk/manager.go + inventory        | Full |
-| Dynamic inventory (non-linear)        | strategy/inventory/reservation_price.go     | Full (Avellaneda-Stoikov) |
-| TWAP large-order split                | strategy/twap/splitter.go                   | Full |
-| Toxic flow detection                  | strategy/toxicity/detector.go               | Full |
-| Anti-prediction (random_noise)        | strategy/quoting/engine.go                  | Full |
-| Latency arbitrage foundation          | executor-service + fast WS path             | Full |
-| Cross-market hedging                  | Optional new adapter (future)               | Ready |
+| WebSocket real-time (L2 + trades)     | [`clob.go`](../../mm/polyback-mm/internal/polymarket/ws/clob.go), [`ws_provider.go`](../../mm/polyback-mm/internal/adapters/marketdata/ws_provider.go) | In use |
+| Volatility adjustment (EWMA)          | [`volatility/tracker.go`](../../mm/polyback-mm/internal/strategy/volatility/tracker.go) | In use |
+| Order-book depth analysis + pause     | [`depth/monitor.go`](../../mm/polyback-mm/internal/strategy/depth/monitor.go) | In use |
+| News/event monitor + auto-withdraw    | [`event_listener.go`](../../mm/polyback-mm/internal/polymarket/ws/event_listener.go) + [`engine.go`](../../mm/polyback-mm/internal/strategy/gabagool/engine.go) cancel-all | HTTP poll + cancel-all (not a news API) |
+| Max position ≤30% per side            | [`mm_evaluator.go`](../../mm/polyback-mm/internal/strategy/risk/mm_evaluator.go), quoting skew | In use |
+| Dynamic inventory (non-linear)        | Folded into [`quoting/`](../../mm/polyback-mm/internal/strategy/quoting/) (no separate `inventory/` package) | In use |
+| TWAP large-order split                | [`twap/splitter.go`](../../mm/polyback-mm/internal/strategy/twap/splitter.go) | Chunk cap per quote; not timed slices |
+| Toxic flow detection                  | [`toxicity/detector.go`](../../mm/polyback-mm/internal/strategy/toxicity/detector.go) | In use |
+| Anti-prediction (random_noise)        | [`quoting/engine.go`](../../mm/polyback-mm/internal/strategy/quoting/engine.go) | In use |
+| Latency arbitrage foundation          | [`cmd/executor`](../../mm/polyback-mm/cmd/executor/main.go), [`cmd/strategy`](../../mm/polyback-mm/cmd/strategy/main.go) | Partial (same stack) |
+| Cross-market hedging                  | —                                           | Future |
 
-### 6. Main Loop (strategy-service)
+### 6. Main loop (actual vs aspirational)
+
+**In production today:** [`cmd/strategy/main.go`](../../mm/polyback-mm/cmd/strategy/main.go) starts the **gabagool** engine (ticker + optional push consumer). Quoting uses `MakerBid` inside `maybeQuoteToken`, not a standalone `UseCase.Run` that places orders.
+
+**Aspirational (full replacement) loop** — useful if you split MM into its own process without gabagool:
 
 ```go
-// application/marketmaker/market_maker_usecase.go
-func (u *MarketMakerUseCase) Run(ctx context.Context) {
-    dataCh := u.dataFeed.SubscribeL2(ctx)
+// Not the current single loop; documented for port alignment only.
+func ExamplePushLoop(dataCh <-chan domain.MarketSnapshot) {
     for snapshot := range dataCh {
-        quote := u.quotingEngine.GenerateQuote(snapshot)
-        if u.riskManager.IsSafe(quote, position) {
-            u.executor.Place(quote)           // paper or live
-            u.ingestor.PublishEvent(...)
-        }
+        _ = snapshot
+        // GenerateQuote + Risk + executor would run here in a dedicated MM binary.
     }
 }
 ```
@@ -203,19 +208,10 @@ usecase := application.NewMarketMakerUseCase(dataFeed, quotingEngine, riskManage
 
 Add `/research` folder (or keep external). All backtesting, parameter calibration, replication scoring, toxic-flow training stays in Python (pandas, backtrader, etc.). Your Go services expose ClickHouse + Prometheus — perfect bridge.
 
-### Next Steps (2–3 days to full implementation)
-1. Create the 6 new `strategy/*` packages (I can give you every file).
-2. Extend your existing WS client to full L2 (Polymarket already supports it).
-3. Wire everything in `strategy-service/main.go`.
-4. Run in simulation mode first (already in executor).
+### Next steps (remaining)
 
-This design is **battle-tested pattern** used by top HFT shops and directly matches the engineering-grade Python version you liked — but now in fast, single-binary Go with your existing infra (Redpanda + ClickHouse + Grafana).
+1. **Persistence:** dedicated schemas for full L2 + VPIN series (Kafka → ClickHouse) if you need offline replay beyond current TOB/order events.
+2. **Optional:** slow or disable the gabagool ticker when `push_refresh_enabled` is true, if profiling shows duplicate work.
+3. **Simulation:** run executor with [`executor.sim`](../../mm/polyback-mm/configs/develop.yaml) enabled and strategy against the same stack as today.
 
-**Want me to generate the full code for any package right now?**  
-Just say e.g.  
-- “give me strategy/quoting/engine.go + interfaces”  
-- “give me toxicity/detector.go with VPIN”  
-- “give me the complete wiring + main.go”  
-- or “full PR-ready diff”
-
-We can have this running and sniper-resistant by the end of the week. Ready when you are! 🚀
+Older references to `strategy-service/main.go` mean [`cmd/strategy/main.go`](../../mm/polyback-mm/cmd/strategy/main.go).

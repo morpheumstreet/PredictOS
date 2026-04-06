@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/risk"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/twap"
 	"github.com/shopspring/decimal"
 )
 
@@ -38,6 +40,9 @@ type Engine struct {
 	tickSize map[string]tickEnt
 	stop     chan struct{}
 	wg       sync.WaitGroup
+
+	pushMu     sync.Mutex
+	pushTimers map[string]*time.Timer
 }
 
 func NewEngine(root *config.Root, feed polyws.MarketFeed, ex *executorclient.Client, disc *Discovery, met *metrics.Service, om *OrderManager, mm *marketmaker.UseCase) *Engine {
@@ -80,9 +85,94 @@ func max64(a, b int64) int64 {
 }
 
 func (e *Engine) Stop() {
+	e.stopPushTimers()
 	close(e.stop)
 	e.wg.Wait()
 	e.om.CancelAll(CancelShutdown)
+}
+
+func (e *Engine) stopPushTimers() {
+	e.pushMu.Lock()
+	defer e.pushMu.Unlock()
+	for _, t := range e.pushTimers {
+		if t != nil {
+			t.Stop()
+		}
+	}
+	e.pushTimers = nil
+}
+
+// CancelAllOrders cancels every open order (e.g. external risk feed).
+func (e *Engine) CancelAllOrders(reason CancelReason) {
+	if e == nil || e.om == nil {
+		return
+	}
+	e.om.CancelAll(reason)
+}
+
+// SchedulePushEvaluate debounces book-driven evaluation per asset (see market_maker.push_refresh_*).
+func (e *Engine) SchedulePushEvaluate(assetID string) {
+	assetID = strings.TrimSpace(assetID)
+	if assetID == "" || e == nil {
+		return
+	}
+	mm := e.root.Hft.Strategy.MarketMaker
+	if !mm.PushRefreshEnabled {
+		return
+	}
+	d := time.Duration(mm.PushRefreshDebounceMillis) * time.Millisecond
+	if d <= 0 {
+		d = 100 * time.Millisecond
+	}
+	e.pushMu.Lock()
+	if e.pushTimers == nil {
+		e.pushTimers = make(map[string]*time.Timer)
+	}
+	if t := e.pushTimers[assetID]; t != nil {
+		t.Stop()
+	}
+	aid := assetID
+	e.pushTimers[assetID] = time.AfterFunc(d, func() {
+		e.pushMu.Lock()
+		delete(e.pushTimers, aid)
+		e.pushMu.Unlock()
+		e.EvaluateAssetID(aid)
+	})
+	e.pushMu.Unlock()
+}
+
+// EvaluateAssetID runs the gabagool path for the market containing this outcome token.
+func (e *Engine) EvaluateAssetID(assetID string) {
+	assetID = strings.TrimSpace(assetID)
+	if assetID == "" {
+		return
+	}
+	g := &e.root.Hft.Strategy.Gabagool
+	e.pos.RefreshIfStale()
+	e.bank.RefreshIfStale(g)
+	e.mu.RLock()
+	markets := append([]Market(nil), e.active...)
+	e.mu.RUnlock()
+	e.pos.SyncInventory(markets)
+
+	if e.bank.IsBelowThreshold(g) {
+		e.om.CheckPendingOrders(e.onFill)
+		return
+	}
+	var target *Market
+	for i := range markets {
+		m := &markets[i]
+		if m.UpTokenID == assetID || m.DownTokenID == assetID {
+			target = m
+			break
+		}
+	}
+	if target == nil {
+		return
+	}
+	now := time.Now()
+	e.evaluateMarket(target, g, now)
+	e.om.CheckPendingOrders(e.onFill)
 }
 
 func (e *Engine) loopDiscover(interval time.Duration) {
@@ -293,6 +383,17 @@ func (e *Engine) maybeQuoteToken(m *Market, tokenID string, dir Direction, book,
 	shares := e.qc.CalculateShares(m, *entry, g, sec, exposure)
 	if shares == nil {
 		return
+	}
+	twapCfg := e.root.Hft.Strategy.MarketMaker
+	if twapCfg.TwapEnabled && twapCfg.TwapMaxChunkShares > 0 {
+		maxC := decimal.NewFromFloat(twapCfg.TwapMaxChunkShares)
+		if maxC.IsPositive() && shares.GreaterThan(maxC) {
+			ch := twap.Chunks(*shares, maxC)
+			if len(ch) > 0 {
+				c0 := ch[0]
+				shares = &c0
+			}
+		}
 	}
 	if n := entry.Mul(*shares); !risk.OrderNotionalAllowed(e.root, n) {
 		return

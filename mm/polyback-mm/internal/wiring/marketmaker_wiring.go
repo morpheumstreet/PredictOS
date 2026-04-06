@@ -14,12 +14,13 @@ import (
 // MarketMakerBundle wires study.md MM use case from the CLOB WebSocket client.
 type MarketMakerBundle struct {
 	UseCase *marketmaker.UseCase
+	MDP     *marketdata.WSProvider
 }
 
 // NewMarketMakerBundle returns nil UseCase if clob is nil.
 func NewMarketMakerBundle(root *config.Root, clob *polyws.ClobClient) *MarketMakerBundle {
 	if clob == nil {
-		return &MarketMakerBundle{UseCase: nil}
+		return &MarketMakerBundle{UseCase: nil, MDP: nil}
 	}
 	mm := root.Hft.Strategy.MarketMaker
 	mdp := marketdata.NewWSProvider(clob, 0)
@@ -28,5 +29,5 @@ func NewMarketMakerBundle(root *config.Root, clob *polyws.ClobClient) *MarketMak
 	qe := quoting.NewEngine(mm, volTr)
 	riskEv := risk.NewMMEvaluator(root)
 	uc := marketmaker.NewUseCase(mdp, tox, qe, riskEv, mm)
-	return &MarketMakerBundle{UseCase: uc}
+	return &MarketMakerBundle{UseCase: uc, MDP: mdp}
 }

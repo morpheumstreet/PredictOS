@@ -2,6 +2,7 @@ package marketmaker
 
 import (
 	"context"
+	"errors"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
@@ -66,4 +67,12 @@ func (u *UseCase) MakerBid(ctx context.Context, tokenID string, tickSize decimal
 		return zero, false, tox, nil
 	}
 	return q.Bid, true, tox, nil
+}
+
+// SubscribeL2 delegates to the market data provider (CLOB book updates → snapshots).
+func (u *UseCase) SubscribeL2(ctx context.Context) (<-chan domain.MarketSnapshot, error) {
+	if u == nil || u.mdp == nil {
+		return nil, errors.New("marketmaker: nil use case or market data provider")
+	}
+	return u.mdp.SubscribeL2(ctx)
 }

@@ -52,6 +52,14 @@ type PolymarketCfg struct {
 	MarketWsCachePath             string    `yaml:"market_ws_cache_path"`
 	MarketWsCacheFlushMillis      int64     `yaml:"market_ws_cache_flush_millis"`
 	Auth                          AuthCfg   `yaml:"auth"`
+	EventFeed                     EventFeedCfg `yaml:"event_feed"`
+}
+
+// EventFeedCfg optional HTTP poll; body hash change triggers OnAlert in strategy (cancel-all).
+type EventFeedCfg struct {
+	Enabled              bool   `yaml:"enabled"`
+	PollURL              string `yaml:"poll_url"`
+	PollIntervalMillis   int    `yaml:"poll_interval_millis"`
 }
 
 type AuthCfg struct {
@@ -99,6 +107,14 @@ type MarketMakerCfg struct {
 	VpinEnabled                bool    `yaml:"vpin_enabled"`
 	VpinMinTrades              int     `yaml:"vpin_min_trades"`
 	VpinImbalanceThreshold     float64 `yaml:"vpin_imbalance_threshold"` // 0–1, mark unsafe if exceeded
+
+	// Push-driven evaluate (book listener); debounce per asset to avoid thrash.
+	PushRefreshEnabled         bool `yaml:"push_refresh_enabled"`
+	PushRefreshDebounceMillis  int  `yaml:"push_refresh_debounce_millis"`
+
+	// TWAP: cap each quote size; remainder on later ticks/push (no in-process queue).
+	TwapEnabled         bool    `yaml:"twap_enabled"`
+	TwapMaxChunkShares  float64 `yaml:"twap_max_chunk_shares"`
 }
 
 type GabagoolCfg struct {

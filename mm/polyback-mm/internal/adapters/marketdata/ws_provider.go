@@ -2,6 +2,7 @@ package marketdata
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ type ClobLike interface {
 	GetTopOfBook(assetID string) (*polyws.TopOfBook, bool)
 	RecentTrades(assetID string, limit int) []domain.Trade
 	LiquidityEMA(assetID string) (bidEMA, askEMA decimal.Decimal, ok bool)
+	RegisterBookListener(fn func(assetID string))
 }
 
 // WSProvider implements input.MarketDataProvider from the Polymarket CLOB WebSocket client.
@@ -60,6 +62,29 @@ func (p *WSProvider) Snapshot(ctx context.Context, assetID string) (domain.Marke
 		Trades:     trades,
 		ObservedAt: time.Now().UTC(),
 	}, true
+}
+
+// SubscribeL2 registers for full book updates and emits a snapshot for each update (buffered channel).
+// The channel is not closed when ctx is cancelled; stop consuming when ctx is done.
+func (p *WSProvider) SubscribeL2(ctx context.Context) (<-chan domain.MarketSnapshot, error) {
+	if p == nil || p.clob == nil {
+		return nil, errors.New("marketdata: nil WSProvider or CLOB")
+	}
+	out := make(chan domain.MarketSnapshot, 256)
+	p.clob.RegisterBookListener(func(assetID string) {
+		if ctx.Err() != nil {
+			return
+		}
+		snap, ok := p.Snapshot(ctx, assetID)
+		if !ok {
+			return
+		}
+		select {
+		case out <- snap:
+		default:
+		}
+	})
+	return out, nil
 }
 
 func topToL2(assetID string, t *polyws.TopOfBook, emaBid, emaAsk *decimal.Decimal) domain.OrderBookL2 {

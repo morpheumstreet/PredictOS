@@ -21,6 +21,10 @@ hft:
     market_ws_cache_flush_millis: 5000
     auth:
       private_key: ""
+    event_feed:
+      enabled: false
+      poll_url: ""
+      poll_interval_millis: 60000
   strategy:
     gabagool:
       enabled: true
@@ -76,6 +80,10 @@ hft:
       vpin_enabled: false
       vpin_min_trades: 5
       vpin_imbalance_threshold: 0.85
+      push_refresh_enabled: false
+      push_refresh_debounce_millis: 100
+      twap_enabled: false
+      twap_max_chunk_shares: 0
   risk:
     kill_switch: false
     max_order_notional_usd: 0

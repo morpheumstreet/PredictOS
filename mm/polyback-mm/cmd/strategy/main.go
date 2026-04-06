@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -71,6 +72,46 @@ func main() {
 	gcfg := &root.Hft.Strategy.Gabagool
 	eng.Start()
 	defer eng.Stop()
+
+	pushCtx, cancelPush := context.WithCancel(context.Background())
+	defer cancelPush()
+	mmStrat := root.Hft.Strategy.MarketMaker
+	if gcfg.Enabled && mmStrat.Enabled && mmStrat.PushRefreshEnabled && mmb.MDP != nil {
+		ch, err := mmb.MDP.SubscribeL2(pushCtx)
+		if err != nil {
+			log.Printf("market_maker push: SubscribeL2: %v", err)
+		} else {
+			go func() {
+				for {
+					select {
+					case <-pushCtx.Done():
+						return
+					case snap, ok := <-ch:
+						if !ok {
+							return
+						}
+						eng.SchedulePushEvaluate(snap.AssetID)
+					}
+				}
+			}()
+		}
+	}
+	ef := root.Hft.Polymarket.EventFeed
+	if gcfg.Enabled && ef.Enabled && strings.TrimSpace(ef.PollURL) != "" {
+		iv := time.Duration(ef.PollIntervalMillis) * time.Millisecond
+		if ef.PollIntervalMillis <= 0 {
+			iv = 60 * time.Second
+		}
+		el := &polyws.EventListener{
+			PollURL:      ef.PollURL,
+			PollInterval: iv,
+			OnAlert: func() {
+				log.Printf("event_feed: body changed, cancel-all")
+				eng.CancelAllOrders(gabagool.CancelRiskOff)
+			},
+		}
+		go el.Start(pushCtx)
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
