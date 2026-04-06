@@ -4,17 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [[ -z "${POLYBOT_HOME:-}" ]]; then
-  if [[ -d "$ROOT/../polybot-main" ]]; then
-    POLYBOT_HOME="$(cd "$ROOT/../polybot-main" && pwd)"
-  fi
-fi
-export POLYBOT_HOME
 export POLYBACK_CONFIG="${POLYBACK_CONFIG:-$ROOT/configs/develop.yaml}"
 
 echo "=========================================="
 echo "Polyback-mm (Go) — all services"
-echo "POLYBOT_HOME=${POLYBOT_HOME:-<unset>}"
 echo "POLYBACK_CONFIG=$POLYBACK_CONFIG"
 echo "=========================================="
 
@@ -31,7 +24,7 @@ start_bg() {
 }
 
 echo ""
-echo "1. infrastructure-orchestrator (:8084) — requires Docker + compose files under POLYBOT_HOME"
+echo "1. infrastructure-orchestrator (:8084) — Docker; compose under deploy/ (resolved from config path)"
 start_bg infrastructure-orchestrator-service "$ROOT/bin/infrastructure" "$POLYBACK_CONFIG"
 
 echo "   Waiting for stacks (adjust sleep if needed)..."

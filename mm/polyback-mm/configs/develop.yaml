@@ -84,15 +84,16 @@ server:
 infrastructure:
   startup_timeout_seconds: 120
   health_check_interval_seconds: 5
+  # Optional override for resolving stack file_path (default: repo root inferred from config path).
   polybot_home: ""
   stacks:
     - name: analytics
-      file_path: docker-compose.analytics.yaml
+      file_path: deploy/docker-compose.analytics.yaml
       project_name: polybot
       expected_services: 2
       startup_order: 1
     - name: monitoring
-      file_path: docker-compose.monitoring.yaml
+      file_path: deploy/docker-compose.monitoring.yaml
       project_name: polybot-monitoring
       expected_services: 4
       startup_order: 2

@@ -23,15 +23,17 @@ go test ./...
 - Default file: `configs/develop.yaml`
 - Override: `export POLYBACK_CONFIG=/path/to/config.yaml` or pass the path as the first argument to any binary.
 
-## Polybot checkout (Docker Compose)
+## Docker Compose (analytics + monitoring)
 
-The infrastructure service runs `docker compose` using YAML files from the Java repo. Set:
+Compose files, ClickHouse init SQL, and Prometheus/Grafana assets live under [`deploy/`](deploy/). The infrastructure binary resolves them relative to the **polyback-mm repo root**, inferred from your config path (e.g. `configs/develop.yaml` → parent directory).
+
+Optional override (custom layout or CI):
 
 ```bash
-export POLYBOT_HOME=/path/to/mm/polybot-main
+export POLYBOT_HOME=/absolute/path/to/polyback-mm   # or any directory containing deploy/docker-compose.*.yaml paths as configured
 ```
 
-If unset, the code tries `../polybot-main` relative to the **current working directory** (works when you run from this directory next to `polybot-main`).
+You can also set `infrastructure.polybot_home` in YAML to the same effect.
 
 ## Run everything (bash)
 
@@ -44,7 +46,7 @@ Ports match the Java layout: executor `8080`, strategy `8081`, analytics `8082`,
 
 ## Research (Python)
 
-Do **not** port `research/` to Go. Keep using the Python tree under `polybot-main/research/` (same ClickHouse as these services). Optional: add a symlink `research -> ../polybot-main/research` in this folder if you want a single working tree.
+Do **not** port `research/` to Go. Keep a Python `research/` tree (e.g. copied from the old Java repo or a sibling checkout) pointed at the same ClickHouse as these services. Optional: symlink `research` into this folder for convenience.
 
 ## Status
 

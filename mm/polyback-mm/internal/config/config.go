@@ -192,34 +192,39 @@ func DefaultPath() string {
 	return "configs/develop.yaml"
 }
 
-// ResolvePolybotHome sets infrastructure paths relative to polybot-main checkout.
-func (r *Root) ResolvePolybotHome() string {
-	home := r.Infrastructure.PolybotHome
-	if home != "" {
-		return home
+// ComposeBase is the directory used to resolve relative infrastructure.stack file_path values.
+// Order: POLYBOT_HOME, infrastructure.polybot_home, then the repo root (parent of configs/ when the
+// loaded config file lives under .../configs/).
+func ComposeBase(r *Root, configFilePath string) (string, error) {
+	if v := os.Getenv("POLYBOT_HOME"); strings.TrimSpace(v) != "" {
+		return filepath.Clean(v), nil
 	}
-	if v := os.Getenv("POLYBOT_HOME"); v != "" {
-		return v
+	if r != nil && strings.TrimSpace(r.Infrastructure.PolybotHome) != "" {
+		return filepath.Clean(r.Infrastructure.PolybotHome), nil
 	}
-	// sibling mm/polybot-main from mm/polyback-mm
-	if abs, err := filepath.Abs(".."); err == nil {
-		candidate := filepath.Join(abs, "polybot-main")
-		if st, err := os.Stat(filepath.Join(candidate, "docker-compose.analytics.yaml")); err == nil && !st.IsDir() {
-			return candidate
-		}
+	if configFilePath == "" {
+		return "", fmt.Errorf("infrastructure: set POLYBOT_HOME or load config from configs/*.yaml")
 	}
-	return ""
+	abs, err := filepath.Abs(configFilePath)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(abs)
+	if filepath.Base(dir) == "configs" {
+		return filepath.Clean(filepath.Join(dir, "..")), nil
+	}
+	return filepath.Clean(dir), nil
 }
 
-func (s InfraStack) ResolvedComposePath(polybotHome string) (string, error) {
+func (s InfraStack) ResolvedComposePath(composeBase string) (string, error) {
 	p := s.FilePath
 	if filepath.IsAbs(p) {
 		return p, nil
 	}
-	if polybotHome == "" {
-		return "", fmt.Errorf("polybot home not set for stack %q", s.Name)
+	if composeBase == "" {
+		return "", fmt.Errorf("compose base not set for stack %q", s.Name)
 	}
-	return filepath.Join(polybotHome, p), nil
+	return filepath.Join(composeBase, p), nil
 }
 
 func BrokerList(r *Root) []string {

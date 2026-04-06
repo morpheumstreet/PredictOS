@@ -15,21 +15,21 @@ import (
 )
 
 type Manager struct {
-	cfg    *config.Root
-	home   string
-	mu     sync.RWMutex
-	running bool
+	cfg         *config.Root
+	composeRoot string
+	mu          sync.RWMutex
+	running     bool
 }
 
-func NewManager(cfg *config.Root) (*Manager, error) {
-	home := cfg.ResolvePolybotHome()
-	if home == "" {
-		return nil, fmt.Errorf("POLYBOT_HOME or infrastructure.polybot_home must point to polybot-main (for docker compose files)")
+func NewManager(cfg *config.Root, configFilePath string) (*Manager, error) {
+	base, err := config.ComposeBase(cfg, configFilePath)
+	if err != nil {
+		return nil, err
 	}
-	return &Manager{cfg: cfg, home: home}, nil
+	return &Manager{cfg: cfg, composeRoot: base}, nil
 }
 
-func (m *Manager) PolybotHome() string { return m.home }
+func (m *Manager) ComposeRoot() string { return m.composeRoot }
 
 func (m *Manager) StartAll() error {
 	m.mu.Lock()
@@ -39,7 +39,7 @@ func (m *Manager) StartAll() error {
 	stacks := append([]config.InfraStack(nil), m.cfg.Infrastructure.Stacks...)
 	sort.Slice(stacks, func(i, j int) bool { return stacks[i].StartupOrder < stacks[j].StartupOrder })
 	for _, s := range stacks {
-		composePath, err := s.ResolvedComposePath(m.home)
+		composePath, err := s.ResolvedComposePath(m.composeRoot)
 		if err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func (m *Manager) StopAll() {
 	sort.Slice(stacks, func(i, j int) bool { return stacks[i].StartupOrder < stacks[j].StartupOrder })
 	for i := len(stacks) - 1; i >= 0; i-- {
 		s := stacks[i]
-		composePath, err := s.ResolvedComposePath(m.home)
+		composePath, err := s.ResolvedComposePath(m.composeRoot)
 		if err != nil {
 			continue
 		}
@@ -163,7 +163,7 @@ func (m *Manager) Status() Status {
 	var stacks []StackStatus
 	allOK := true
 	for _, s := range m.cfg.Infrastructure.Stacks {
-		composePath, err := s.ResolvedComposePath(m.home)
+		composePath, err := s.ResolvedComposePath(m.composeRoot)
 		if err != nil {
 			stacks = append(stacks, StackStatus{Name: s.Name, ExpectedServices: s.ExpectedServices, HealthStatus: "ERROR: " + err.Error()})
 			allOK = false

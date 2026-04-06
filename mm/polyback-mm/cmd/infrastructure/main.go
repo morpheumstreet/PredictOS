@@ -32,11 +32,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	mgr, err := infra.NewManager(root)
+	mgr, err := infra.NewManager(root, cfgPath)
 	if err != nil {
 		log.Fatalf("infra: %v", err)
 	}
-	log.Printf("infrastructure: polybot home %q", mgr.PolybotHome())
+	log.Printf("infrastructure: compose root %q", mgr.ComposeRoot())
 	log.Println("infrastructure: launching compose stacks...")
 	if err := mgr.StartAll(); err != nil {
 		log.Fatalf("infrastructure start: %v", err)
