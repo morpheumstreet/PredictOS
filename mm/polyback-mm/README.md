@@ -1,6 +1,6 @@
 # polyback-mm
 
-Go port of [polybot-main](../polybot-main) trading services: executor, strategy, ingestor, analytics, and infrastructure orchestrator. Kafka topic and HTTP routes follow the Java services so you can mix Go and Java during migration.
+Go implementation of trading services: executor, strategy, ingestor, analytics, and infrastructure orchestrator. Kafka topics and HTTP routes were aligned with the original Java services for compatibility during migration.
 
 ## Design (SOLID-oriented)
 
@@ -42,17 +42,17 @@ bash scripts/start-all-services.sh
 bash scripts/stop-all-services.sh
 ```
 
-Ports match the Java layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`.
+Ports match the historical polybot layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`.
 
 ## Research (Python)
 
-Do **not** port `research/` to Go. Keep a Python `research/` tree (e.g. copied from the old Java repo or a sibling checkout) pointed at the same ClickHouse as these services. Optional: symlink `research` into this folder for convenience.
+Do **not** port `research/` to Go. Python analysis and tooling live in [../research](../research) (sibling directory under `mm/`). Point it at the same ClickHouse as these services. Optional: symlink `research` into this folder for convenience.
 
 ## Status
 
 - **Executor**: paper exchange simulator, core Polymarket REST routes, Kafka event envelope, Prometheus.
 - **Strategy**: Gabagool discovery, WS TOB client, quote sizing, order manager, HTTP executor client.
-- **Ingestor / analytics**: HTTP status and health; full Java ingest pipelines and ClickHouse analytics queries are stubs to extend.
-- **Crypto**: HMAC and EIP-712 vectors match `polybot-core` unit tests.
+- **Ingestor / analytics**: HTTP status and health; full ingest pipelines and ClickHouse analytics queries are stubs to extend.
+- **Crypto**: HMAC and EIP-712 vectors match the original `polybot-core` Java unit tests.
 
 Live CLOB signing and non-paper execution paths return HTTP 501 until wired to a full `PolymarketTradingService` equivalent.

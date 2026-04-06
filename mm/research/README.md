@@ -4,9 +4,14 @@ This folder is for offline quant research (Step 4) using ClickHouse as the sourc
 
 ## Prereqs
 
-- ClickHouse running locally (`docker-compose.analytics.yaml`)
-- ClickHouse DDL applied (creates `polybot.user_trade_research`):
-  - `./scripts/clickhouse/apply-init.sh`
+- ClickHouse (+ Kafka/Redpanda) from **polyback-mm** `deploy/` stack:
+
+  ```bash
+  cd ../polyback-mm
+  docker compose -f deploy/docker-compose.analytics.yaml up -d
+  ```
+
+- DDL: SQL files under `../polyback-mm/deploy/clickhouse/init/` are applied on first ClickHouse container startup via the compose volume mount.
 
 ## Setup (recommended)
 
