@@ -23,6 +23,11 @@ go test ./...
 - Default file: `configs/develop.yaml`
 - Override: `export POLYBACK_CONFIG=/path/to/config.yaml` or pass the path as the first argument to any binary.
 
+## HTTP API
+
+- Human-readable: [`docs/API.md`](docs/API.md)
+- OpenAPI 3.0: [`docs/openapi.json`](docs/openapi.json)
+
 ## Docker Compose (analytics + monitoring)
 
 Compose files, ClickHouse init SQL, and Prometheus/Grafana assets live under [`deploy/`](deploy/). The infrastructure binary resolves them relative to the **polyback-mm repo root**, inferred from your config path (e.g. `configs/develop.yaml` → parent directory).

@@ -1,0 +1,667 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "polyback-mm API",
+    "description": "HTTP surface for the Go Polymarket trading stack (executor, strategy, analytics, ingestor, infrastructure). Default bind addresses are from `configs/develop.yaml` (`server.*_addr`). WebSocket market data is consumed **outbound** to Polymarket CLOB only; streaming events use Kafka topic `hft.events.topic` when enabled.",
+    "version": "1.0.0"
+  },
+  "tags": [
+    { "name": "Common", "description": "Health and metrics on every service" },
+    { "name": "Executor", "description": "Paper/live Polymarket adapter (default :8080)" },
+    { "name": "Strategy", "description": "Gabagool strategy service (default :8081)" },
+    { "name": "Analytics", "description": "Analytics HTTP facade (default :8082); ClickHouse queries mostly stubs" },
+    { "name": "Ingestor", "description": "Ingestor status (default :8083)" },
+    { "name": "Infrastructure", "description": "Docker compose orchestration (default :8084)" }
+  ],
+  "paths": {
+    "/actuator/health": {
+      "get": {
+        "tags": ["Common"],
+        "summary": "Liveness probe",
+        "description": "Available on all five binaries on their respective ports.",
+        "responses": {
+          "200": {
+            "description": "UP",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ActuatorHealth" }
+              }
+            }
+          }
+        },
+        "servers": [
+          { "url": "http://127.0.0.1:8080", "description": "executor" },
+          { "url": "http://127.0.0.1:8081", "description": "strategy" },
+          { "url": "http://127.0.0.1:8082", "description": "analytics" },
+          { "url": "http://127.0.0.1:8083", "description": "ingestor" },
+          { "url": "http://127.0.0.1:8084", "description": "infrastructure" }
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["Common"],
+        "summary": "Prometheus scrape endpoint",
+        "responses": {
+          "200": {
+            "description": "text/plain exposition format",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          }
+        },
+        "servers": [
+          { "url": "http://127.0.0.1:8080" },
+          { "url": "http://127.0.0.1:8081" },
+          { "url": "http://127.0.0.1:8082" },
+          { "url": "http://127.0.0.1:8083" },
+          { "url": "http://127.0.0.1:8084" }
+        ]
+      }
+    },
+    "/api/polymarket/health": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Executor / Polymarket health",
+        "parameters": [
+          {
+            "name": "deep",
+            "in": "query",
+            "schema": { "type": "boolean", "default": false },
+            "description": "If true and `tokenId` is set, embed cached top-of-book JSON in `orderBook`"
+          },
+          {
+            "name": "tokenId",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Asset / token id for deep health"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Health payload",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolymarketHealthResponse" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/account": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Account summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolymarketAccountResponse" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/bankroll": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Bankroll / equity (paper uses config bankroll)",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolymarketBankrollResponse" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/positions": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Open positions",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paper: list of positions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PolymarketPosition" }
+                }
+              }
+            }
+          },
+          "501": { "description": "Live positions not implemented" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/tick-size/{tokenId}": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Tick size for token (currently constant 0.01 JSON number)",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": { "schema": { "type": "number" } }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/marketdata/top/{tokenId}": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Cached top of book for token",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TopOfBook" }
+              }
+            }
+          },
+          "404": { "description": "No book cached for token" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/orders/limit": {
+      "post": {
+        "tags": ["Executor"],
+        "summary": "Place limit order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LimitOrderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paper: submission result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrderSubmissionResult" }
+              }
+            }
+          },
+          "400": { "description": "Invalid JSON body" },
+          "501": { "description": "Live path not wired" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/orders/market": {
+      "post": {
+        "tags": ["Executor"],
+        "summary": "Place market order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MarketOrderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrderSubmissionResult" }
+              }
+            }
+          },
+          "400": { "description": "Invalid JSON body" },
+          "501": { "description": "Live path not wired" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/orders/{orderId}": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Get order by id",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw JSON from simulator",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          },
+          "501": { "description": "Live not implemented" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      },
+      "delete": {
+        "tags": ["Executor"],
+        "summary": "Cancel order",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw JSON from simulator",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          },
+          "501": { "description": "Live not implemented" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/orders": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "List orders",
+        "responses": { "501": { "description": "Not implemented" } },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/polymarket/trades": {
+      "get": {
+        "tags": ["Executor"],
+        "summary": "Trades",
+        "responses": { "501": { "description": "Not implemented" } },
+        "servers": [{ "url": "http://127.0.0.1:8080" }]
+      }
+    },
+    "/api/strategy/status": {
+      "get": {
+        "tags": ["Strategy"],
+        "summary": "Strategy engine status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StrategyStatus" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8081" }]
+      }
+    },
+    "/api/analytics/status": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Analytics service metadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AnalyticsStatus" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8082" }]
+      }
+    },
+    "/api/analytics/events": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Query analytics events (stub)",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Reserved; currently ignored"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": {} }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8082" }]
+      }
+    },
+    "/api/ingestor/status": {
+      "get": {
+        "tags": ["Ingestor"],
+        "summary": "Ingestor and market-WS snapshot",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IngestorStatus" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8083" }]
+      }
+    },
+    "/api/infrastructure/status": {
+      "get": {
+        "tags": ["Infrastructure"],
+        "summary": "Docker compose stack status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InfrastructureStatus" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8084" }]
+      }
+    },
+    "/api/infrastructure/health": {
+      "get": {
+        "tags": ["Infrastructure"],
+        "summary": "Infrastructure health (503 if degraded)",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InfrastructureHealth" }
+              }
+            }
+          },
+          "503": { "description": "OverallHealth not HEALTHY" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8084" }]
+      }
+    },
+    "/api/infrastructure/links": {
+      "get": {
+        "tags": ["Infrastructure"],
+        "summary": "Local URLs for ClickHouse, Kafka, Grafana, etc.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InfrastructureLinks" }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8084" }]
+      }
+    },
+    "/api/infrastructure/restart": {
+      "post": {
+        "tags": ["Infrastructure"],
+        "summary": "Stop then start all compose stacks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "description": "Restart failed" }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8084" }]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActuatorHealth": {
+        "type": "object",
+        "required": ["status"],
+        "properties": { "status": { "type": "string", "example": "UP" } }
+      },
+      "OrderSide": {
+        "type": "string",
+        "enum": ["BUY", "SELL"]
+      },
+      "DecimalString": {
+        "type": "string",
+        "description": "Decimal serialized by Go `shopspring/decimal` (often a numeric string)"
+      },
+      "LimitOrderRequest": {
+        "type": "object",
+        "required": ["tokenId", "side", "price", "size"],
+        "properties": {
+          "tokenId": { "type": "string" },
+          "side": { "$ref": "#/components/schemas/OrderSide" },
+          "price": { "$ref": "#/components/schemas/DecimalString" },
+          "size": { "$ref": "#/components/schemas/DecimalString" },
+          "orderType": { "type": "string" },
+          "tickSize": { "$ref": "#/components/schemas/DecimalString" },
+          "negRisk": { "type": "boolean" },
+          "feeRateBps": { "type": "integer" },
+          "nonce": { "type": "integer", "format": "int64" },
+          "expirationSeconds": { "type": "integer", "format": "int64" },
+          "taker": { "type": "string" },
+          "deferExec": { "type": "boolean" }
+        }
+      },
+      "MarketOrderRequest": {
+        "type": "object",
+        "required": ["tokenId", "side", "amount", "price"],
+        "properties": {
+          "tokenId": { "type": "string" },
+          "side": { "$ref": "#/components/schemas/OrderSide" },
+          "amount": { "$ref": "#/components/schemas/DecimalString" },
+          "price": { "$ref": "#/components/schemas/DecimalString" },
+          "orderType": { "type": "string" },
+          "tickSize": { "$ref": "#/components/schemas/DecimalString" },
+          "negRisk": { "type": "boolean" },
+          "feeRateBps": { "type": "integer" },
+          "nonce": { "type": "integer", "format": "int64" },
+          "taker": { "type": "string" },
+          "deferExec": { "type": "boolean" }
+        }
+      },
+      "OrderSubmissionResult": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string", "description": "e.g. PAPER, LIVE" },
+          "signedOrder": {},
+          "clobResponse": {}
+        }
+      },
+      "PolymarketHealthResponse": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string" },
+          "clobRestUrl": { "type": "string" },
+          "clobWsUrl": { "type": "string" },
+          "chainId": { "type": "integer" },
+          "useServerTime": { "type": "boolean" },
+          "marketWsEnabled": { "type": "boolean" },
+          "userWsEnabled": { "type": "boolean" },
+          "deep": { "type": "boolean" },
+          "tokenId": { "type": "string" },
+          "serverTimeSeconds": { "type": "integer", "format": "int64" },
+          "orderBook": {},
+          "deepError": { "type": "string" }
+        }
+      },
+      "PolymarketAccountResponse": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string" },
+          "signerAddress": { "type": "string" },
+          "makerAddress": { "type": "string" },
+          "funderAddress": { "type": "string" }
+        }
+      },
+      "PolymarketBankrollResponse": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string" },
+          "makerAddress": { "type": "string" },
+          "usdcBalance": { "$ref": "#/components/schemas/DecimalString" },
+          "positionsCurrentValueUsd": { "$ref": "#/components/schemas/DecimalString" },
+          "positionsInitialValueUsd": { "$ref": "#/components/schemas/DecimalString" },
+          "totalEquityUsd": { "$ref": "#/components/schemas/DecimalString" },
+          "positionsCount": { "type": "integer" },
+          "redeemablePositionsCount": { "type": "integer" },
+          "mergeablePositionsCount": { "type": "integer" },
+          "asOfMillis": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PolymarketPosition": {
+        "type": "object",
+        "properties": {
+          "proxyWallet": { "type": "string" },
+          "asset": { "type": "string" },
+          "conditionId": { "type": "string" },
+          "size": { "$ref": "#/components/schemas/DecimalString" },
+          "avgPrice": { "$ref": "#/components/schemas/DecimalString" },
+          "initialValue": { "$ref": "#/components/schemas/DecimalString" },
+          "currentValue": { "$ref": "#/components/schemas/DecimalString" },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "outcome": { "type": "string" },
+          "outcomeIndex": { "type": "integer" },
+          "curPrice": { "$ref": "#/components/schemas/DecimalString" },
+          "redeemable": { "type": "boolean" },
+          "mergeable": { "type": "boolean" },
+          "negativeRisk": { "type": "boolean" }
+        }
+      },
+      "TopOfBook": {
+        "type": "object",
+        "properties": {
+          "bestBid": { "$ref": "#/components/schemas/DecimalString" },
+          "bestAsk": { "$ref": "#/components/schemas/DecimalString" },
+          "bestBidSize": { "$ref": "#/components/schemas/DecimalString" },
+          "bestAskSize": { "$ref": "#/components/schemas/DecimalString" },
+          "lastTradePrice": { "$ref": "#/components/schemas/DecimalString" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "lastTradeAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StrategyStatus": {
+        "type": "object",
+        "required": ["activeMarkets", "running"],
+        "properties": {
+          "activeMarkets": { "type": "integer" },
+          "running": { "type": "boolean" }
+        }
+      },
+      "AnalyticsStatus": {
+        "type": "object",
+        "properties": {
+          "app": { "type": "string" },
+          "datasourceUrl": { "type": "string", "description": "ClickHouse DSN from config" },
+          "eventsTable": { "type": "string" }
+        }
+      },
+      "IngestorStatus": {
+        "type": "object",
+        "properties": {
+          "app": { "type": "string" },
+          "polymarketUsername": { "type": "string" },
+          "proxyAddress": { "type": "string" },
+          "dataApiBaseUrl": { "type": "string" },
+          "pollingEnabled": { "type": "boolean" },
+          "marketWsStarted": { "type": "boolean" },
+          "subscribedAssets": { "type": "integer" },
+          "topOfBookCount": { "type": "integer" },
+          "kafkaEnabled": { "type": "boolean" },
+          "kafkaTopic": { "type": "string" },
+          "gammaBaseUrl": { "type": "string" },
+          "clickhouseBaseUrl": { "type": "string" }
+        }
+      },
+      "InfrastructureStackStatus": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "totalServices": { "type": "integer" },
+          "runningServices": { "type": "integer" },
+          "expectedServices": { "type": "integer" },
+          "healthStatus": { "type": "string" }
+        }
+      },
+      "InfrastructureStatus": {
+        "type": "object",
+        "properties": {
+          "managed": { "type": "boolean" },
+          "overallHealth": { "type": "string" },
+          "stacks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InfrastructureStackStatus" }
+          }
+        }
+      },
+      "InfrastructureHealth": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "overallHealth": { "type": "string" },
+          "managed": { "type": "boolean" },
+          "stacks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InfrastructureStackStatus" }
+          }
+        }
+      },
+      "InfrastructureLinks": {
+        "type": "object",
+        "properties": {
+          "analytics": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "monitoring": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
