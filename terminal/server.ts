@@ -2,6 +2,7 @@ import { handleApi } from "@/server/handle-api";
 
 // HTTP API includes read-only SQLite at GET /api/alpha-rules (strat/alpha-rules/data/alpha_rules.sqlite).
 // Optional: ALPHA_RULES_DB=/absolute/path/to/alpha_rules.sqlite
+// Agent run log (writable): terminal/data/terminal_local.sqlite — optional TERMINAL_LOCAL_DB override; GET /api/agent-runs
 
 const isProd = process.env.BUN_ENV === "production";
 const rootDir = isProd ? "dist" : "public";

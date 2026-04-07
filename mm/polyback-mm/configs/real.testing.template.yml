@@ -1,0 +1,32 @@
+# Template for local testing secrets (tracked in git — no real keys here).
+#
+# One-time setup:
+#   cp configs/real.testing.template.yml configs/real.testing.yml
+#
+# Polymarket CLOB relayer/builder (or set env: POLY_RELAYER_API_KEY, POLY_BUILDER_API_KEY,
+# POLY_BUILDER_SECRET, POLY_BUILDER_PASSPHRASE). Merge order: develop.yaml → real.testing.yml → real.yml
+#
+# Optional: override public API URL for terminal / reverse proxy
+# server:
+#   public_api_base_url: https://polyback.example.com
+
+hft:
+  polymarket:
+    auth:
+      private_key: ""
+    relayer_api_key: ""
+    builder_api_key: ""
+    builder_secret: ""
+    builder_passphrase: ""
+  limitless:
+    base_url: ""
+    api_key: ""
+    wallet_address: ""
+  predict_fun:
+    base_url: ""
+    api_key: ""
+    private_key: ""
+  kalshi_dflow:
+    base_url: ""
+    api_key: ""
+    event_ticker: ""

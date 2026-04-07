@@ -46,6 +46,7 @@ func main() {
 	r.Use(middleware.Logger, middleware.Recoverer)
 	r.Get("/actuator/health", httpserver.ActuatorHealth)
 	r.Handle("/metrics", httpserver.MetricsHandler())
+	httpserver.MountClientConfig(r, root)
 
 	r.Route("/api/infrastructure", func(r chi.Router) {
 		r.Get("/status", func(w http.ResponseWriter, _ *http.Request) {

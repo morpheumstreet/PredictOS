@@ -66,6 +66,7 @@ func main() {
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
 	r.Get("/actuator/health", httpserver.ActuatorHealth)
 	r.Handle("/metrics", httpserver.MetricsHandler())
+	httpserver.MountClientConfig(r, root)
 
 	h := httpapi.NewPolymarket(root, sim, pub, wsClient, httpapi.NewOrderMetrics())
 	h.RegisterRoutes(r)

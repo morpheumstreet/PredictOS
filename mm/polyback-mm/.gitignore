@@ -7,4 +7,6 @@ vendor/
 logs/
 *.pid
 .env
+configs/real.yml
+configs/real.testing.yml
 .DS_Store

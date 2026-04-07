@@ -61,6 +61,7 @@ func main() {
 	r.Use(middleware.Logger, middleware.Recoverer)
 	r.Get("/actuator/health", httpserver.ActuatorHealth)
 	r.Handle("/metrics", httpserver.MetricsHandler())
+	httpserver.MountClientConfig(r, root)
 	r.Get("/api/ingestor/status", func(w http.ResponseWriter, _ *http.Request) {
 		st := map[string]any{
 			"app":                "polyback-ingestor",

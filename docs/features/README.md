@@ -58,3 +58,4 @@ The [README](../../README.md) documents the concrete `terminal/` and `supabase/`
 
 - [README](../../README.md) — project overview, feature table, architecture, and setup.
 - [docs/operation_mm/](../operation_mm/) — market-making and integration notes separate from end-user feature guides.
+- [docs/architecture/sqlite-vs-clickhouse.md](../architecture/sqlite-vs-clickhouse.md) — when to use SQLite vs ClickHouse, system boundaries, and anti-patterns.

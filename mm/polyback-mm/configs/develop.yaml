@@ -7,6 +7,7 @@ hft:
     market_ws_snapshot_publish_millis: 1000
     market_ws_cache_publish_on_start: true
   executor:
+    # Defaults from server.public_api_base_url when empty (see config.Load).
     base_url: http://127.0.0.1:8080
     send_live_ack: false
   polymarket:
@@ -21,10 +22,27 @@ hft:
     market_ws_cache_flush_millis: 5000
     auth:
       private_key: ""
+    relayer_api_key: ""
+    builder_api_key: ""
+    builder_secret: ""
+    builder_passphrase: ""
     event_feed:
       enabled: false
       poll_url: ""
       poll_interval_millis: 60000
+  # Overlays: configs/real.testing.yml (gitignored — copy from real.testing.template.yml) then real.yml merged after this file.
+  limitless:
+    base_url: ""
+    api_key: ""
+    wallet_address: ""
+  predict_fun:
+    base_url: ""
+    api_key: ""
+    private_key: ""
+  kalshi_dflow:
+    base_url: ""
+    api_key: ""
+    event_ticker: ""
   strategy:
     gabagool:
       enabled: true
@@ -105,6 +123,8 @@ kafka:
     - 127.0.0.1:9092
 
 server:
+  # Canonical base URL for terminal / browsers (must match reachable executor API in dev).
+  public_api_base_url: http://127.0.0.1:8080
   executor_addr: :8080
   strategy_addr: :8081
   analytics_addr: :8082

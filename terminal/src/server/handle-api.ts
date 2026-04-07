@@ -2,6 +2,7 @@ import * as alphaRules from "@/server/api/alpha-rules";
 import * as descriptionAgentStrategies from "@/server/api/description-agent-strategies";
 import * as descriptionAgentStrategiesExpand from "@/server/api/description-agent-strategies-expand";
 import * as descriptionAgentStrategyStatus from "@/server/api/description-agent-strategy-status";
+import * as agentRuns from "@/server/api/agent-runs";
 import * as arbitrageFinder from "@/server/api/arbitrage-finder";
 import * as bookmakerAgent from "@/server/api/bookmaker-agent";
 import * as eventAnalysisAgent from "@/server/api/event-analysis-agent";
@@ -10,6 +11,7 @@ import * as irysUpload from "@/server/api/irys-upload";
 import * as limitOrderBot from "@/server/api/limit-order-bot";
 import * as mapperAgent from "@/server/api/mapper-agent";
 import * as polymarketPutOrder from "@/server/api/polymarket-put-order";
+import * as polybackConfigClient from "@/server/api/polyback-config-client";
 import * as polyfactualResearch from "@/server/api/polyfactual-research";
 import * as positionTracker from "@/server/api/position-tracker";
 import * as walletTracking from "@/server/api/wallet-tracking";
@@ -31,6 +33,7 @@ const routes: Record<string, ApiRouteHandlers> = {
   "/api/description-agent-strategy-status": {
     GET: descriptionAgentStrategyStatus.GET,
   },
+  "/api/agent-runs": { GET: agentRuns.GET },
   "/api/arbitrage-finder": { POST: arbitrageFinder.POST },
   "/api/bookmaker-agent": { POST: bookmakerAgent.POST },
   "/api/event-analysis-agent": { POST: eventAnalysisAgent.POST },
@@ -40,6 +43,7 @@ const routes: Record<string, ApiRouteHandlers> = {
   "/api/mapper-agent": { POST: mapperAgent.POST },
   "/api/polymarket-put-order": { POST: polymarketPutOrder.POST },
   "/api/polyfactual-research": { POST: polyfactualResearch.POST },
+  "/api/polyback/config/client": { GET: polybackConfigClient.GET },
   "/api/position-tracker": { POST: positionTracker.POST },
   "/api/wallet-tracking": { GET: walletTracking.GET },
   "/api/x402-seller": { POST: x402Seller.POST, OPTIONS: x402Seller.OPTIONS },

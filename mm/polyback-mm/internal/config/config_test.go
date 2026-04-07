@@ -1,0 +1,206 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestApplyLimitlessEnv(t *testing.T) {
+	t.Setenv("LIMITLESS_API_KEY", "lk")
+	t.Setenv("LIMITLESS_WALLET_ADDRESS", "0xw")
+	l := LimitlessCfg{}
+	applyLimitlessEnv(&l)
+	if l.APIKey != "lk" || l.WalletAddress != "0xw" {
+		t.Fatalf("%+v", l)
+	}
+	l2 := LimitlessCfg{APIKey: "yaml"}
+	applyLimitlessEnv(&l2)
+	if l2.APIKey != "yaml" || l2.WalletAddress != "0xw" {
+		t.Fatal("yaml api_key should win; empty wallet from env")
+	}
+}
+
+func TestApplyPredictFunEnv(t *testing.T) {
+	t.Setenv("PREDICT_FUN_BASE_URL", "https://pf.example")
+	t.Setenv("PREDICT_FUN_API_KEY", "pk")
+	t.Setenv("PREDICT_FUN_PRIVATE_KEY", "0xsec")
+	p := PredictFunCfg{}
+	applyPredictFunEnv(&p)
+	if p.BaseURL != "https://pf.example" || p.APIKey != "pk" || p.PrivateKey != "0xsec" {
+		t.Fatalf("%+v", p)
+	}
+	p2 := PredictFunCfg{APIKey: "yaml"}
+	applyPredictFunEnv(&p2)
+	if p2.APIKey != "yaml" || p2.PrivateKey != "0xsec" {
+		t.Fatal("empty fields should take env")
+	}
+}
+
+func TestApplyKalshiDFlowEnv(t *testing.T) {
+	t.Setenv("DFLOW_BASE_URL", "https://dflow.example")
+	t.Setenv("DFLOW_API_KEY", "dk")
+	t.Setenv("DFLOW_LIVE_EVENT_TICKER", "KX-1")
+	k := KalshiDFlowCfg{}
+	applyKalshiDFlowEnv(&k)
+	if k.BaseURL != "https://dflow.example" || k.APIKey != "dk" || k.EventTicker != "KX-1" {
+		t.Fatalf("%+v", k)
+	}
+}
+
+func TestApplyPolymarketEnv(t *testing.T) {
+	t.Setenv("POLY_RELAYER_API_KEY", "relayer")
+	t.Setenv("POLY_BUILDER_API_KEY", "bkey")
+	t.Setenv("POLY_BUILDER_SECRET", "bsec")
+	t.Setenv("POLY_BUILDER_PASSPHRASE", "bpass")
+	p := PolymarketCfg{}
+	applyPolymarketEnv(&p)
+	if p.RelayerAPIKey != "relayer" || p.BuilderAPIKey != "bkey" || p.BuilderSecret != "bsec" || p.BuilderPassphrase != "bpass" {
+		t.Fatalf("%+v", p)
+	}
+	p2 := PolymarketCfg{RelayerAPIKey: "yaml"}
+	applyPolymarketEnv(&p2)
+	if p2.RelayerAPIKey != "yaml" {
+		t.Fatal("yaml should not be overwritten by env when set")
+	}
+	if p2.BuilderAPIKey != "bkey" {
+		t.Fatal("empty yaml field should still take env")
+	}
+}
+
+func TestLoad_mergesRealYML(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	real := filepath.Join(dir, "real.yml")
+	if err := os.WriteFile(base, []byte(`hft:
+  mode: PAPER
+  polymarket:
+    gamma_url: https://gamma.example
+    auth:
+      private_key: ""
+  limitless:
+    api_key: ""
+    wallet_address: ""
+  predict_fun:
+    api_key: ""
+  kalshi_dflow:
+    api_key: ""
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(real, []byte(`hft:
+  limitless:
+    api_key: secret-from-real
+    wallet_address: "0xabc"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Hft.Mode != "PAPER" {
+		t.Fatalf("mode: %q", r.Hft.Mode)
+	}
+	if r.Hft.Polymarket.GammaURL != "https://gamma.example" {
+		t.Fatalf("gamma: %q", r.Hft.Polymarket.GammaURL)
+	}
+	if r.Hft.Limitless.APIKey != "secret-from-real" {
+		t.Fatalf("limitless key: %q", r.Hft.Limitless.APIKey)
+	}
+	if r.Hft.Limitless.WalletAddress != "0xabc" {
+		t.Fatalf("wallet: %q", r.Hft.Limitless.WalletAddress)
+	}
+	if len(r.Kafka.Brokers) != 1 || r.Kafka.Brokers[0] != "127.0.0.1:9092" {
+		t.Fatalf("brokers: %v", r.Kafka.Brokers)
+	}
+}
+
+func TestLoad_realTestingThenRealYML_order(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	if err := os.WriteFile(base, []byte(`hft:
+  mode: PAPER
+  limitless:
+    api_key: ""
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "real.testing.yml"), []byte(`hft:
+  limitless:
+    api_key: from-testing
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "real.yml"), []byte(`hft:
+  limitless:
+    api_key: from-local
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Hft.Limitless.APIKey != "from-local" {
+		t.Fatalf("want real.yml to win, got %q", r.Hft.Limitless.APIKey)
+	}
+}
+
+func TestLoad_fillsHftExecutorFromPublicAPI(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	if err := os.WriteFile(base, []byte(`hft:
+  mode: PAPER
+  executor:
+    base_url: ""
+  polymarket:
+    gamma_url: https://gamma.example
+    auth:
+      private_key: ""
+  limitless:
+    api_key: ""
+  predict_fun:
+    api_key: ""
+  kalshi_dflow:
+    api_key: ""
+server:
+  public_api_base_url: http://poly.example:7777
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Hft.Executor.BaseURL != "http://poly.example:7777" {
+		t.Fatalf("want executor base_url from public_api_base_url, got %q", r.Hft.Executor.BaseURL)
+	}
+}
+
+func TestLoad_missingRealYML_ok(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	if err := os.WriteFile(base, []byte(`hft:
+  mode: PAPER
+kafka:
+  brokers:
+    - a:1
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Hft.Mode != "PAPER" {
+		t.Fatal(r.Hft.Mode)
+	}
+}

@@ -6,26 +6,52 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/imdario/mergo"
 	"gopkg.in/yaml.v3"
 )
 
 type Root struct {
-	Hft             Hft             `yaml:"hft"`
-	Executor        ExecutorCfg     `yaml:"executor"`
-	Kafka           KafkaCfg        `yaml:"kafka"`
-	Server          ServerCfg       `yaml:"server"`
-	Infrastructure  InfraRoot       `yaml:"infrastructure"`
-	Ingestor        IngestorCfg     `yaml:"ingestor"`
-	Analytics       AnalyticsCfg    `yaml:"analytics"`
+	Hft            Hft          `yaml:"hft"`
+	Executor       ExecutorCfg  `yaml:"executor"`
+	Kafka          KafkaCfg     `yaml:"kafka"`
+	Server         ServerCfg    `yaml:"server"`
+	Infrastructure InfraRoot    `yaml:"infrastructure"`
+	Ingestor       IngestorCfg  `yaml:"ingestor"`
+	Analytics      AnalyticsCfg `yaml:"analytics"`
 }
 
 type Hft struct {
-	Mode       string           `yaml:"mode"`
-	Events     EventsCfg        `yaml:"events"`
-	Executor   HftExecutor      `yaml:"executor"`
-	Polymarket PolymarketCfg    `yaml:"polymarket"`
-	Strategy   StrategyCfg      `yaml:"strategy"`
-	Risk       RiskCfg          `yaml:"risk"`
+	Mode        string         `yaml:"mode"`
+	Events      EventsCfg      `yaml:"events"`
+	Executor    HftExecutor    `yaml:"executor"`
+	Polymarket  PolymarketCfg  `yaml:"polymarket"`
+	Limitless   LimitlessCfg   `yaml:"limitless"`
+	PredictFun  PredictFunCfg  `yaml:"predict_fun"`
+	KalshiDFlow KalshiDFlowCfg `yaml:"kalshi_dflow"`
+	Strategy    StrategyCfg    `yaml:"strategy"`
+	Risk        RiskCfg        `yaml:"risk"`
+}
+
+// LimitlessCfg is optional; secrets should stay empty in committed configs (use .env / private overrides).
+// Env fallback when YAML empty: LIMITLESS_API_KEY, LIMITLESS_WALLET_ADDRESS.
+type LimitlessCfg struct {
+	BaseURL       string `yaml:"base_url"`
+	APIKey        string `yaml:"api_key"`
+	WalletAddress string `yaml:"wallet_address"`
+}
+
+// PredictFunCfg is optional (Predict.fun REST). Env when YAML empty: PREDICT_FUN_API_KEY, PREDICT_FUN_PRIVATE_KEY, PREDICT_FUN_BASE_URL.
+type PredictFunCfg struct {
+	BaseURL    string `yaml:"base_url"`
+	APIKey     string `yaml:"api_key"`
+	PrivateKey string `yaml:"private_key"`
+}
+
+// KalshiDFlowCfg is optional (Kalshi-shaped markets via DFlow). Env when YAML empty: DFLOW_API_KEY, DFLOW_LIVE_EVENT_TICKER, DFLOW_BASE_URL.
+type KalshiDFlowCfg struct {
+	BaseURL     string `yaml:"base_url"`
+	APIKey      string `yaml:"api_key"`
+	EventTicker string `yaml:"event_ticker"`
 }
 
 type EventsCfg struct {
@@ -42,24 +68,29 @@ type HftExecutor struct {
 }
 
 type PolymarketCfg struct {
-	GammaURL                      string    `yaml:"gamma_url"`
-	ClobRestURL                   string    `yaml:"clob_rest_url"`
-	ClobWsURL                     string    `yaml:"clob_ws_url"`
-	ChainID                       int       `yaml:"chain_id"`
-	MarketWsEnabled               bool      `yaml:"market_ws_enabled"`
-	MarketWsStaleTimeoutMillis    int64     `yaml:"market_ws_stale_timeout_millis"`
-	MarketWsReconnectBackoffMillis int64    `yaml:"market_ws_reconnect_backoff_millis"`
-	MarketWsCachePath             string    `yaml:"market_ws_cache_path"`
-	MarketWsCacheFlushMillis      int64     `yaml:"market_ws_cache_flush_millis"`
-	Auth                          AuthCfg   `yaml:"auth"`
-	EventFeed                     EventFeedCfg `yaml:"event_feed"`
+	GammaURL                       string  `yaml:"gamma_url"`
+	ClobRestURL                    string  `yaml:"clob_rest_url"`
+	ClobWsURL                      string  `yaml:"clob_ws_url"`
+	ChainID                        int     `yaml:"chain_id"`
+	MarketWsEnabled                bool    `yaml:"market_ws_enabled"`
+	MarketWsStaleTimeoutMillis     int64   `yaml:"market_ws_stale_timeout_millis"`
+	MarketWsReconnectBackoffMillis int64   `yaml:"market_ws_reconnect_backoff_millis"`
+	MarketWsCachePath              string  `yaml:"market_ws_cache_path"`
+	MarketWsCacheFlushMillis       int64   `yaml:"market_ws_cache_flush_millis"`
+	Auth                           AuthCfg `yaml:"auth"`
+	// Relayer/builder credentials (Polymarket CLOB). Env fallback when YAML empty: POLY_RELAYER_API_KEY, POLY_BUILDER_*.
+	RelayerAPIKey     string       `yaml:"relayer_api_key"`
+	BuilderAPIKey     string       `yaml:"builder_api_key"`
+	BuilderSecret     string       `yaml:"builder_secret"`
+	BuilderPassphrase string       `yaml:"builder_passphrase"`
+	EventFeed         EventFeedCfg `yaml:"event_feed"`
 }
 
 // EventFeedCfg optional HTTP poll; body hash change triggers OnAlert in strategy (cancel-all).
 type EventFeedCfg struct {
-	Enabled              bool   `yaml:"enabled"`
-	PollURL              string `yaml:"poll_url"`
-	PollIntervalMillis   int    `yaml:"poll_interval_millis"`
+	Enabled            bool   `yaml:"enabled"`
+	PollURL            string `yaml:"poll_url"`
+	PollIntervalMillis int    `yaml:"poll_interval_millis"`
 }
 
 type AuthCfg struct {
@@ -67,8 +98,8 @@ type AuthCfg struct {
 }
 
 type StrategyCfg struct {
-	Gabagool     GabagoolCfg     `yaml:"gabagool"`
-	MarketMaker  MarketMakerCfg  `yaml:"market_maker"`
+	Gabagool    GabagoolCfg    `yaml:"gabagool"`
+	MarketMaker MarketMakerCfg `yaml:"market_maker"`
 }
 
 // MarketMakerCfg enables study.md-style quoting + toxicity (see internal/strategy/quoting, toxicity).
@@ -82,16 +113,16 @@ type MarketMakerCfg struct {
 
 	LiquidityDropRatio float64 `yaml:"liquidity_drop_ratio"`
 
-	ToxicityPenaltyMax float64 `yaml:"toxicity_penalty_max"`
-	ToxicityUnsafeBurst int   `yaml:"toxicity_unsafe_burst"`
+	ToxicityPenaltyMax  float64 `yaml:"toxicity_penalty_max"`
+	ToxicityUnsafeBurst int     `yaml:"toxicity_unsafe_burst"`
 
 	BaseSpread     float64 `yaml:"base_spread"`
 	VolSpreadBonus float64 `yaml:"vol_spread_bonus"`
 
 	// EWMA dynamic spread (0 scale = disabled). Addon is added to base+vol_spread_bonus before half-spread.
-	EwmaVolLambda       float64 `yaml:"ewma_vol_lambda"`
-	EwmaVolSpreadScale  float64 `yaml:"ewma_vol_spread_scale"`
-	EwmaVolSpreadMax    float64 `yaml:"ewma_vol_spread_max"`
+	EwmaVolLambda      float64 `yaml:"ewma_vol_lambda"`
+	EwmaVolSpreadScale float64 `yaml:"ewma_vol_spread_scale"`
+	EwmaVolSpreadMax   float64 `yaml:"ewma_vol_spread_max"`
 
 	ImbalanceSkewScale float64 `yaml:"imbalance_skew_scale"`
 
@@ -104,17 +135,17 @@ type MarketMakerCfg struct {
 	DepthPauseFallback  bool    `yaml:"depth_pause_fallback"`   // true = fall back to legacy when bid paused
 
 	// VPIN-style imbalance on recent trades (requires size + side on trades).
-	VpinEnabled                bool    `yaml:"vpin_enabled"`
-	VpinMinTrades              int     `yaml:"vpin_min_trades"`
-	VpinImbalanceThreshold     float64 `yaml:"vpin_imbalance_threshold"` // 0–1, mark unsafe if exceeded
+	VpinEnabled            bool    `yaml:"vpin_enabled"`
+	VpinMinTrades          int     `yaml:"vpin_min_trades"`
+	VpinImbalanceThreshold float64 `yaml:"vpin_imbalance_threshold"` // 0–1, mark unsafe if exceeded
 
 	// Push-driven evaluate (book listener); debounce per asset to avoid thrash.
-	PushRefreshEnabled         bool `yaml:"push_refresh_enabled"`
-	PushRefreshDebounceMillis  int  `yaml:"push_refresh_debounce_millis"`
+	PushRefreshEnabled        bool `yaml:"push_refresh_enabled"`
+	PushRefreshDebounceMillis int  `yaml:"push_refresh_debounce_millis"`
 
 	// TWAP: cap each quote size; remainder on later ticks/push (no in-process queue).
-	TwapEnabled         bool    `yaml:"twap_enabled"`
-	TwapMaxChunkShares  float64 `yaml:"twap_max_chunk_shares"`
+	TwapEnabled        bool    `yaml:"twap_enabled"`
+	TwapMaxChunkShares float64 `yaml:"twap_max_chunk_shares"`
 }
 
 type GabagoolCfg struct {
@@ -161,15 +192,15 @@ type ExecutorCfg struct {
 }
 
 type SimCfg struct {
-	Enabled                           bool    `yaml:"enabled"`
-	FillsEnabled                      bool    `yaml:"fills_enabled"`
-	FillPollMillis                    int64   `yaml:"fill_poll_millis"`
-	MakerFillProbabilityPerPoll       float64 `yaml:"maker_fill_probability_per_poll"`
+	Enabled                               bool    `yaml:"enabled"`
+	FillsEnabled                          bool    `yaml:"fills_enabled"`
+	FillPollMillis                        int64   `yaml:"fill_poll_millis"`
+	MakerFillProbabilityPerPoll           float64 `yaml:"maker_fill_probability_per_poll"`
 	MakerFillProbabilityMultiplierPerTick float64 `yaml:"maker_fill_probability_multiplier_per_tick"`
-	MakerFillProbabilityMaxPerPoll  float64 `yaml:"maker_fill_probability_max_per_poll"`
-	MakerFillFractionOfRemaining      float64 `yaml:"maker_fill_fraction_of_remaining"`
-	Username                          string  `yaml:"username"`
-	ProxyAddress                      string  `yaml:"proxy_address"`
+	MakerFillProbabilityMaxPerPoll        float64 `yaml:"maker_fill_probability_max_per_poll"`
+	MakerFillFractionOfRemaining          float64 `yaml:"maker_fill_fraction_of_remaining"`
+	Username                              string  `yaml:"username"`
+	ProxyAddress                          string  `yaml:"proxy_address"`
 }
 
 type KafkaCfg struct {
@@ -177,18 +208,22 @@ type KafkaCfg struct {
 }
 
 type ServerCfg struct {
+	// PublicAPIBaseURL is the canonical HTTP base for browsers and the terminal (no trailing path).
+	PublicAPIBaseURL string `yaml:"public_api_base_url"`
+	// ClientConfigEnabled when false disables GET /api/v1/config/client on this process. Nil/absent means enabled.
+	ClientConfigEnabled *bool `yaml:"client_config_enabled"`
 	ExecutorAddr        string `yaml:"executor_addr"`
 	StrategyAddr        string `yaml:"strategy_addr"`
 	AnalyticsAddr       string `yaml:"analytics_addr"`
 	IngestorAddr        string `yaml:"ingestor_addr"`
-	InfrastructureAddr  string `yaml:"infrastructure_addr"`
+	InfrastructureAddr    string `yaml:"infrastructure_addr"`
 }
 
 type InfraRoot struct {
-	StartupTimeoutSeconds       int           `yaml:"startup_timeout_seconds"`
-	HealthCheckIntervalSeconds  int           `yaml:"health_check_interval_seconds"`
-	PolybotHome                 string        `yaml:"polybot_home"`
-	Stacks                      []InfraStack  `yaml:"stacks"`
+	StartupTimeoutSeconds      int          `yaml:"startup_timeout_seconds"`
+	HealthCheckIntervalSeconds int          `yaml:"health_check_interval_seconds"`
+	PolybotHome                string       `yaml:"polybot_home"`
+	Stacks                     []InfraStack `yaml:"stacks"`
 }
 
 type InfraStack struct {
@@ -208,9 +243,9 @@ type IngestorCfg struct {
 }
 
 type PolymarketIngestor struct {
-	Username        string `yaml:"username"`
-	ProxyAddress    string `yaml:"proxy_address"`
-	DataAPIBaseURL  string `yaml:"data_api_base_url"`
+	Username       string `yaml:"username"`
+	ProxyAddress   string `yaml:"proxy_address"`
+	DataAPIBaseURL string `yaml:"data_api_base_url"`
 }
 
 type ClickhouseHTTP struct {
@@ -224,6 +259,9 @@ type AnalyticsCfg struct {
 	ClickhouseDSN string `yaml:"clickhouse_dsn"`
 }
 
+// Load reads the base YAML (e.g. configs/develop.yaml), then merges overlays from the same
+// directory in order: real.testing.yml (gitignored; copy from real.testing.template.yml), then
+// real.yml (gitignored, optional extra overrides). Missing overlay files are skipped.
 func Load(path string) (*Root, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -233,10 +271,110 @@ func Load(path string) (*Root, error) {
 	if err := yaml.Unmarshal(b, &r); err != nil {
 		return nil, err
 	}
+	if err := mergeConfigOverlays(&r, path, []string{"real.testing.yml", "real.yml"}); err != nil {
+		return nil, err
+	}
 	if r.Hft.Events.Topic == "" {
 		r.Hft.Events.Topic = "polybot.events"
 	}
+	applyPolymarketEnv(&r.Hft.Polymarket)
+	applyLimitlessEnv(&r.Hft.Limitless)
+	applyPredictFunEnv(&r.Hft.PredictFun)
+	applyKalshiDFlowEnv(&r.Hft.KalshiDFlow)
+	normalizeHftExecutorBaseURLFromPublicAPI(&r)
 	return &r, nil
+}
+
+// normalizeHftExecutorBaseURLFromPublicAPI sets hft.executor.base_url from server.public_api_base_url when the former is empty (DRY).
+func normalizeHftExecutorBaseURLFromPublicAPI(r *Root) {
+	pub := strings.TrimSpace(r.Server.PublicAPIBaseURL)
+	if pub == "" {
+		return
+	}
+	if strings.TrimSpace(r.Hft.Executor.BaseURL) == "" {
+		r.Hft.Executor.BaseURL = pub
+	}
+}
+
+func applyPolymarketEnv(p *PolymarketCfg) {
+	if p.RelayerAPIKey == "" {
+		p.RelayerAPIKey = os.Getenv("POLY_RELAYER_API_KEY")
+	}
+	if p.BuilderAPIKey == "" {
+		p.BuilderAPIKey = os.Getenv("POLY_BUILDER_API_KEY")
+	}
+	if p.BuilderSecret == "" {
+		p.BuilderSecret = os.Getenv("POLY_BUILDER_SECRET")
+	}
+	if p.BuilderPassphrase == "" {
+		p.BuilderPassphrase = os.Getenv("POLY_BUILDER_PASSPHRASE")
+	}
+}
+
+func applyLimitlessEnv(l *LimitlessCfg) {
+	if l.APIKey == "" {
+		l.APIKey = os.Getenv("LIMITLESS_API_KEY")
+	}
+	if l.WalletAddress == "" {
+		l.WalletAddress = os.Getenv("LIMITLESS_WALLET_ADDRESS")
+	}
+}
+
+func applyPredictFunEnv(p *PredictFunCfg) {
+	if p.BaseURL == "" {
+		p.BaseURL = os.Getenv("PREDICT_FUN_BASE_URL")
+	}
+	if p.APIKey == "" {
+		p.APIKey = os.Getenv("PREDICT_FUN_API_KEY")
+	}
+	if p.PrivateKey == "" {
+		p.PrivateKey = os.Getenv("PREDICT_FUN_PRIVATE_KEY")
+	}
+}
+
+func applyKalshiDFlowEnv(k *KalshiDFlowCfg) {
+	if k.BaseURL == "" {
+		k.BaseURL = os.Getenv("DFLOW_BASE_URL")
+	}
+	if k.APIKey == "" {
+		k.APIKey = os.Getenv("DFLOW_API_KEY")
+	}
+	if k.EventTicker == "" {
+		k.EventTicker = os.Getenv("DFLOW_LIVE_EVENT_TICKER")
+	}
+}
+
+func mergeConfigOverlays(r *Root, baseConfigPath string, overlayFilenames []string) error {
+	absBase, err := filepath.Abs(baseConfigPath)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(baseConfigPath)
+	for _, name := range overlayFilenames {
+		p := filepath.Join(dir, name)
+		absOver, err := filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+		if absBase == absOver {
+			continue
+		}
+		ob, err := os.ReadFile(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("read %s: %w", p, err)
+		}
+		var over Root
+		if err := yaml.Unmarshal(ob, &over); err != nil {
+			return fmt.Errorf("parse %s: %w", p, err)
+		}
+		if err := mergo.Merge(r, &over, mergo.WithOverride); err != nil {
+			return fmt.Errorf("merge %s: %w", p, err)
+		}
+	}
+	return nil
 }
 
 // DefaultPath returns POLYBACK_CONFIG, first CLI arg handled in main, or configs/develop.yaml.
