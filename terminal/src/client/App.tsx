@@ -1,9 +1,8 @@
-import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { getPolybackApiBaseUrl } from "@/client/polyback-api-base";
 import AgenticMarketAnalysis from "@/components/AgenticMarketAnalysis";
 import ArbitrageTerminal from "@/components/ArbitrageTerminal";
 import EventScannerTerminal from "@/components/EventScannerTerminal";
+import PolybackTerminal from "@/components/PolybackTerminal";
 import Sidebar from "@/components/Sidebar";
 import WalletTrackingTerminal from "@/components/WalletTrackingTerminal";
 import { BettingBotsPage } from "@/pages/BettingBotsPage";
@@ -61,19 +60,21 @@ function EventScannerPage() {
   );
 }
 
-function PolybackConfigWarmup() {
-  useEffect(() => {
-    void getPolybackApiBaseUrl().catch(() => {
-      /* polyback-mm optional until MM UI calls getPolybackApiBaseUrl */
-    });
-  }, []);
-  return null;
+function PolybackMMPage() {
+  return (
+    <div className="flex h-screen">
+      <div className="relative z-10 overflow-visible">
+        <Sidebar activeTab="polyback-mm" />
+      </div>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        <PolybackTerminal />
+      </main>
+    </div>
+  );
 }
 
 export function App() {
   return (
-    <>
-      <PolybackConfigWarmup />
     <Routes>
       <Route path="/" element={<Navigate to="/market-analysis" replace />} />
       <Route path="/market-analysis" element={<AnalysisPage />} />
@@ -82,8 +83,8 @@ export function App() {
       <Route path="/wallet-tracking" element={<WalletTrackingPage />} />
       <Route path="/event-scanner" element={<EventScannerPage />} />
       <Route path="/agents" element={<AgentsPage />} />
+      <Route path="/polyback-mm" element={<PolybackMMPage />} />
       <Route path="*" element={<Navigate to="/market-analysis" replace />} />
     </Routes>
-    </>
   );
 }

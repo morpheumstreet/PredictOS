@@ -5,11 +5,21 @@
 
 let cache: string | null = null;
 
+export type PolybackServiceTarget =
+  | "executor"
+  | "strategy"
+  | "analytics"
+  | "ingestor"
+  | "infrastructure";
+
+export type PolybackServiceURLs = Partial<Record<PolybackServiceTarget, string>>;
+
 export type PolybackClientConfig = {
   apiBaseUrl: string;
   hftMode?: string;
   server?: Record<string, unknown>;
   modules?: Array<{ name: string; pathPrefix: string }>;
+  serviceUrls?: PolybackServiceURLs;
 };
 
 export async function fetchPolybackClientConfig(): Promise<
@@ -38,4 +48,24 @@ export async function getPolybackApiBaseUrl(): Promise<string> {
 
 export function clearPolybackApiBaseCache(): void {
   cache = null;
+}
+
+/**
+ * GET relay through Bun (same origin) to a specific polyback process.
+ * Uses service URLs from Go client config.
+ */
+export async function polybackRelayJson<T>(
+  target: PolybackServiceTarget,
+  path: string
+): Promise<{ ok: boolean; status: number; data?: T; raw: string }> {
+  const q = new URLSearchParams({ target, path });
+  const res = await fetch(`/api/polyback/relay?${q}`);
+  const raw = await res.text();
+  let data: T | undefined;
+  try {
+    data = JSON.parse(raw) as T;
+  } catch {
+    /* non-JSON */
+  }
+  return { ok: res.ok, status: res.status, data, raw };
 }

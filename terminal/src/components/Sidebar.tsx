@@ -11,6 +11,7 @@ import {
   Eye,
   ScanSearch,
   Sparkles,
+  Server,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ const navItems = [
   { id: "wallet-tracking", label: "Wallet Tracking", icon: Eye, href: "/wallet-tracking" },
   { id: "event-scanner", label: "Event Scanner", icon: ScanSearch, href: "/event-scanner" },
   { id: "agents", label: "Agents", icon: Sparkles, href: "/agents" },
+  { id: "polyback-mm", label: "Polyback MM", icon: Server, href: "/polyback-mm" },
 ];
 
 export function Sidebar({ activeTab }: SidebarProps) {

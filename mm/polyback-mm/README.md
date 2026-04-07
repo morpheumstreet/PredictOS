@@ -27,6 +27,7 @@ go test ./...
 
 - Human-readable: [`docs/API.md`](docs/API.md)
 - OpenAPI 3.0: [`docs/openapi.json`](docs/openapi.json)
+- **Browser / terminal (no secrets):** `GET /api/v1/config/client` — `apiBaseUrl`, `hftMode`, `serviceUrls` (per-process bases derived from `server.*_addr`), and module path prefixes. The PredictOS terminal uses Bun relays (`/api/polyback/config/client`, `/api/polyback/relay`) and the **Polyback MM** sidebar page.
 
 ## Docker Compose (analytics + monitoring)
 

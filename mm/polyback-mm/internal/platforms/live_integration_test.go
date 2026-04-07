@@ -4,22 +4,40 @@
 //
 //	go test -tags=live ./internal/platforms/... -count=1 -timeout 120s -v
 //
-// Optional env (skip subtests when unset):
-//   PREDICT_FUN_API_KEY, PREDICT_FUN_PRIVATE_KEY — Predict.fun v1 API + JWT auth smoke
-//   DFLOW_API_KEY, DFLOW_LIVE_EVENT_TICKER — Kalshi data via DFlow (e.g. KXVIX-25)
+// Config: POLYBACK_CONFIG or defaults to ../../configs/develop.yaml (from this package dir),
+// merged with real.testing.yml / real.yml and env fallbacks (see internal/config).
+//
+// Optional credentials (YAML hft.* or env — skip subtests when still empty after Load):
+//
+//	predict_fun: PREDICT_FUN_API_KEY, PREDICT_FUN_PRIVATE_KEY
+//	kalshi_dflow: DFLOW_API_KEY, DFLOW_LIVE_EVENT_TICKER
 package platforms_test
 
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/kalshidflow"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/limitless"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/predictfun"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/wiring"
 )
+
+func liveRoot(t *testing.T) *config.Root {
+	t.Helper()
+	path := os.Getenv("POLYBACK_CONFIG")
+	if path == "" {
+		path = filepath.Join("..", "..", "configs", "develop.yaml")
+	}
+	root, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("config load %q: %v", path, err)
+	}
+	return root
+}
 
 func TestLive_Polymarket_GammaAndCLOB(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -57,7 +75,8 @@ func TestLive_Limitless_ActiveMarkets(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	c := limitless.NewLimitless("", "", "")
+	root := liveRoot(t)
+	c := wiring.LimitlessFromHft(&root.Hft)
 	ms, err := c.GetAllMarkets(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -78,14 +97,14 @@ func TestLive_Limitless_ActiveMarkets(t *testing.T) {
 }
 
 func TestLive_PredictFun_MarketsWithAPIKey(t *testing.T) {
-	key := os.Getenv("PREDICT_FUN_API_KEY")
-	if key == "" {
-		t.Skip("set PREDICT_FUN_API_KEY for live Predict.fun")
+	root := liveRoot(t)
+	if strings.TrimSpace(root.Hft.PredictFun.APIKey) == "" {
+		t.Skip("set PREDICT_FUN_API_KEY or hft.predict_fun.api_key for live Predict.fun")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	c := predictfun.NewPredictFun("", key, "")
+	c := wiring.PredictFunFromHft(&root.Hft)
 	ms, err := c.GetAllMarkets(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -95,16 +114,14 @@ func TestLive_PredictFun_MarketsWithAPIKey(t *testing.T) {
 	}
 	t.Logf("predict.fun: markets=%d first_id=%s", len(ms), ms[0].ID)
 
-	pk := os.Getenv("PREDICT_FUN_PRIVATE_KEY")
-	if pk == "" {
-		t.Log("PREDICT_FUN_PRIVATE_KEY unset; skipping Authenticate smoke")
+	if strings.TrimSpace(root.Hft.PredictFun.PrivateKey) == "" {
+		t.Log("private key unset; skipping Authenticate smoke")
 		return
 	}
-	c2 := predictfun.NewPredictFun("", key, pk)
-	if err := c2.Authenticate(ctx); err != nil {
+	if err := c.Authenticate(ctx); err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	bal, err := c2.GetBalance(ctx)
+	bal, err := c.GetBalance(ctx)
 	if err != nil {
 		t.Fatalf("balance: %v", err)
 	}
@@ -112,15 +129,16 @@ func TestLive_PredictFun_MarketsWithAPIKey(t *testing.T) {
 }
 
 func TestLive_KalshiDFlow_EventMarkets(t *testing.T) {
-	apiKey := os.Getenv("DFLOW_API_KEY")
-	event := os.Getenv("DFLOW_LIVE_EVENT_TICKER")
+	root := liveRoot(t)
+	apiKey := strings.TrimSpace(root.Hft.KalshiDFlow.APIKey)
+	event := strings.TrimSpace(root.Hft.KalshiDFlow.EventTicker)
 	if apiKey == "" || event == "" {
-		t.Skip("set DFLOW_API_KEY and DFLOW_LIVE_EVENT_TICKER for live DFlow")
+		t.Skip("set DFLOW_API_KEY + DFLOW_LIVE_EVENT_TICKER or hft.kalshi_dflow for live DFlow")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	k := kalshidflow.NewKalshiDFlow("", apiKey, event)
+	k := wiring.KalshiDFlowFromHft(&root.Hft)
 	ms, err := k.GetAllMarkets(ctx)
 	if err != nil {
 		t.Fatal(err)

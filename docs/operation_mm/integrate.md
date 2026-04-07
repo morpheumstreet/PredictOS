@@ -30,6 +30,15 @@ This is **not** a rewrite — it is a clean **extension** of what you already ha
 
 **Deferred / follow-up:** persist **full** L2 books and VPIN time series to ClickHouse (or dedicated Kafka topics); inventory as a separate `strategy/inventory` package; cross-market hedge adapter. TOB/order lifecycle already flows through Kafka → ingest for analytics.
 
+### Terminal integration: YAML-backed client config (no secrets in browser)
+
+- **Source of truth:** [`mm/polyback-mm/configs/develop.yaml`](../../mm/polyback-mm/configs/develop.yaml) (and merged overlays) — key `server.public_api_base_url` is the canonical HTTP base for browsers and the PredictOS terminal.
+- **DRY:** If `hft.executor.base_url` is empty, [`config.Load`](../../mm/polyback-mm/internal/config/config.go) sets it from `server.public_api_base_url`.
+- **Go endpoint (each binary):** `GET /api/v1/config/client` — JSON with `apiBaseUrl`, `hftMode`, listen addresses, and module path prefixes. Implemented in [`internal/httpserver/client_config.go`](../../mm/polyback-mm/internal/httpserver/client_config.go); disable per process with `server.client_config_enabled: false` in YAML.
+- **Terminal:** Bun proxies same-origin `GET /api/polyback/config/client` to the Go service using **`POLYBACK_BOOTSTRAP_URL`** (default `http://127.0.0.1:8080`). **`GET /api/polyback/relay?target=executor&path=/api/polymarket/health`** (and other allowlisted paths) forwards using **`serviceUrls`** from that config so the browser never hits cross-origin ports directly.
+- **UI:** Sidebar **Polyback MM** → [`PolybackTerminal`](../../terminal/src/components/PolybackTerminal.tsx) shows client config, `serviceUrls`, and parallel health probes.
+- **Verify:** `curl -s http://127.0.0.1:8080/api/v1/config/client | jq .` while `cmd/executor` (or any polyback HTTP process) is running with `POLYBACK_CONFIG` pointing at your YAML.
+
 ### 1. Architecture Principles (strictly followed)
 - **Clean Architecture** (ports & adapters / hexagonal):  
   Domain ← Application ← Adapters ← Infrastructure  

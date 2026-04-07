@@ -35,6 +35,18 @@ func TestBuildClientConfigResponse_NoSecretLeak(t *testing.T) {
 	}
 }
 
+func TestListenAddrToBaseURL(t *testing.T) {
+	if got := ListenAddrToBaseURL(":9091"); got != "http://127.0.0.1:9091" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ListenAddrToBaseURL("192.168.1.2:4000"); got != "http://192.168.1.2:4000" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ListenAddrToBaseURL(""); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestResolveAPIBaseURL(t *testing.T) {
 	r := &config.Root{
 		Server: config.ServerCfg{PublicAPIBaseURL: "https://x.com/poly/"},

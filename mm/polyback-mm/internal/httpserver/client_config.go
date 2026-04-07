@@ -11,10 +11,20 @@ import (
 
 // ClientConfigResponse is safe for browsers: no secrets, keys, or passwords.
 type ClientConfigResponse struct {
-	APIBaseURL string                 `json:"apiBaseUrl"`
-	HftMode    string                 `json:"hftMode"`
-	Server     ClientConfigServerInfo `json:"server"`
-	Modules    []ClientConfigModule   `json:"modules"`
+	APIBaseURL   string                 `json:"apiBaseUrl"`
+	HftMode      string                 `json:"hftMode"`
+	Server       ClientConfigServerInfo `json:"server"`
+	ServiceURLs  ClientServiceURLs      `json:"serviceUrls"`
+	Modules      []ClientConfigModule   `json:"modules"`
+}
+
+// ClientServiceURLs maps each polyback process to an HTTP base URL for terminal relay (dev defaults :port → http://127.0.0.1:port).
+type ClientServiceURLs struct {
+	Executor         string `json:"executor,omitempty"`
+	Strategy         string `json:"strategy,omitempty"`
+	Analytics        string `json:"analytics,omitempty"`
+	Ingestor         string `json:"ingestor,omitempty"`
+	Infrastructure   string `json:"infrastructure,omitempty"`
 }
 
 // ClientConfigServerInfo exposes listen addresses and public URL (non-secret).
@@ -56,6 +66,21 @@ func ResolveAPIBaseURL(root *config.Root) string {
 	return ""
 }
 
+// ListenAddrToBaseURL converts a listen address like ":8080" or "127.0.0.1:8080" into a browser-reachable base URL.
+func ListenAddrToBaseURL(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if strings.Contains(addr, "://") {
+		return strings.TrimSuffix(addr, "/")
+	}
+	if strings.HasPrefix(addr, ":") {
+		return "http://127.0.0.1" + addr
+	}
+	return "http://" + addr
+}
+
 // BuildClientConfigResponse builds the JSON payload for GET /api/v1/config/client.
 func BuildClientConfigResponse(root *config.Root) ClientConfigResponse {
 	return ClientConfigResponse{
@@ -68,6 +93,13 @@ func BuildClientConfigResponse(root *config.Root) ClientConfigResponse {
 			AnalyticsAddr:      root.Server.AnalyticsAddr,
 			IngestorAddr:       root.Server.IngestorAddr,
 			InfrastructureAddr: root.Server.InfrastructureAddr,
+		},
+		ServiceURLs: ClientServiceURLs{
+			Executor:       ListenAddrToBaseURL(root.Server.ExecutorAddr),
+			Strategy:       ListenAddrToBaseURL(root.Server.StrategyAddr),
+			Analytics:      ListenAddrToBaseURL(root.Server.AnalyticsAddr),
+			Ingestor:       ListenAddrToBaseURL(root.Server.IngestorAddr),
+			Infrastructure: ListenAddrToBaseURL(root.Server.InfrastructureAddr),
 		},
 		Modules: []ClientConfigModule{
 			{Name: "polymarket_executor", PathPrefix: "/api/polymarket"},

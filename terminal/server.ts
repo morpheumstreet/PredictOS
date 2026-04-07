@@ -3,6 +3,7 @@ import { handleApi } from "@/server/handle-api";
 // HTTP API includes read-only SQLite at GET /api/alpha-rules (strat/alpha-rules/data/alpha_rules.sqlite).
 // Optional: ALPHA_RULES_DB=/absolute/path/to/alpha_rules.sqlite
 // Agent run log (writable): terminal/data/terminal_local.sqlite — optional TERMINAL_LOCAL_DB override; GET /api/agent-runs
+// Polyback-mm: POLYBACK_BOOTSTRAP_URL (default http://127.0.0.1:8080) → GET /api/polyback/config/client, GET /api/polyback/relay
 
 const isProd = process.env.BUN_ENV === "production";
 const rootDir = isProd ? "dist" : "public";
