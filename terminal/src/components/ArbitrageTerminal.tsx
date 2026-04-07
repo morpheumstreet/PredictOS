@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Link2,
   Search,
@@ -15,6 +15,8 @@ import {
   Percent,
   Target,
   Shield,
+  History,
+  RefreshCw,
 } from "lucide-react";
 import type { ArbitrageResponse, ArbitrageAnalysis, ArbitrageMarketData } from "@/types/arbitrage";
 
@@ -52,6 +54,49 @@ function detectUrlType(url: string): 'kalshi' | 'polymarket' | 'none' {
   return 'none';
 }
 
+type AgentRunRow = {
+  id: string;
+  createdAt: number;
+  feature: string;
+  success: boolean;
+  httpStatus: number | null;
+  errorMessage: string | null;
+  model: string | null;
+  processingTimeMs: number | null;
+  requestSummary: string;
+  responseSummary: string;
+};
+
+function parseRequestUrl(requestSummary: string): string {
+  try {
+    const o = JSON.parse(requestSummary) as { url?: string };
+    return typeof o.url === "string" ? o.url : "—";
+  } catch {
+    return "—";
+  }
+}
+
+function formatRunOutcome(row: AgentRunRow): string {
+  if (!row.success) {
+    return row.errorMessage?.slice(0, 80) || "Failed";
+  }
+  try {
+    const o = JSON.parse(row.responseSummary) as {
+      hasArbitrage?: boolean;
+      viableAfterFees?: boolean | null;
+    };
+    if (o.hasArbitrage === true) {
+      if (o.viableAfterFees === false) return "Gross arb (fees?)";
+      if (o.viableAfterFees === true) return "Arb (viable)";
+      return "Arb signal";
+    }
+    if (o.hasArbitrage === false) return "No arb";
+    return "OK";
+  } catch {
+    return "OK";
+  }
+}
+
 const ArbitrageTerminal = () => {
   // State
   const [url, setUrl] = useState("");
@@ -61,6 +106,33 @@ const ArbitrageTerminal = () => {
   const [result, setResult] = useState<ArbitrageAnalysis | null>(null);
   const [metadata, setMetadata] = useState<ArbitrageResponse['metadata'] | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [agentRuns, setAgentRuns] = useState<AgentRunRow[]>([]);
+  const [agentRunsLoading, setAgentRunsLoading] = useState(false);
+  const [agentRunsError, setAgentRunsError] = useState<string | null>(null);
+
+  const loadAgentRuns = useCallback(async () => {
+    setAgentRunsLoading(true);
+    setAgentRunsError(null);
+    try {
+      const res = await fetch("/api/agent-runs?feature=arbitrage_finder&limit=20");
+      const data = (await res.json()) as { success?: boolean; rows?: AgentRunRow[]; error?: string };
+      if (!data.success || !Array.isArray(data.rows)) {
+        setAgentRunsError(data.error || "Could not load run history");
+        setAgentRuns([]);
+        return;
+      }
+      setAgentRuns(data.rows);
+    } catch (e) {
+      setAgentRunsError(e instanceof Error ? e.message : "Could not load run history");
+      setAgentRuns([]);
+    } finally {
+      setAgentRunsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAgentRuns();
+  }, [loadAgentRuns]);
 
   // Derived state
   const detectedUrlType = useMemo(() => detectUrlType(url), [url]);
@@ -96,6 +168,7 @@ const ArbitrageTerminal = () => {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsLoading(false);
+      void loadAgentRuns();
     }
   };
 
@@ -336,6 +409,91 @@ const ArbitrageTerminal = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Local run history (SQLite); fleet / long-range metrics stay in Grafana */}
+        <div className="rounded-xl terminal-border bg-card p-4 md:p-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <History className="w-4 h-4 text-muted-foreground shrink-0" />
+              <h2 className="text-sm font-mono text-primary uppercase tracking-wider">
+                Recent searches
+              </h2>
+              <span className="text-[10px] text-muted-foreground font-normal normal-case">
+                (local log)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadAgentRuns()}
+              disabled={agentRunsLoading}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:border-primary/50 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${agentRunsLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Last 20 arbitrage-finder runs from{" "}
+            <code className="bg-muted px-1 rounded">terminal_local.sqlite</code>. Use Grafana for fleet
+            metrics and long-range analytics.
+          </p>
+          {agentRunsError && <p className="text-xs text-destructive mb-2">{agentRunsError}</p>}
+          {agentRuns.length === 0 && !agentRunsLoading && !agentRunsError && (
+            <p className="text-sm text-muted-foreground">No runs logged yet. Run a search above.</p>
+          )}
+          {agentRuns.length > 0 && (
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground uppercase font-mono border-b border-border">
+                    <th className="pb-2 pr-3 whitespace-nowrap">Time</th>
+                    <th className="pb-2 pr-3 min-w-[140px]">URL</th>
+                    <th className="pb-2 pr-3 whitespace-nowrap">Model</th>
+                    <th className="pb-2 pr-3 whitespace-nowrap">HTTP</th>
+                    <th className="pb-2 pr-3 whitespace-nowrap">ms</th>
+                    <th className="pb-2 whitespace-nowrap">Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentRuns.map((row) => {
+                    const outcome = formatRunOutcome(row);
+                    const outcomePositive =
+                      row.success &&
+                      (outcome.includes("Arb") || outcome.includes("arb"));
+                    return (
+                      <tr key={row.id} className="border-b border-border/40 align-top">
+                        <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">
+                          {new Date(row.createdAt).toLocaleString()}
+                        </td>
+                        <td className="py-2 pr-3 font-mono text-foreground break-all max-w-[280px]">
+                          {parseRequestUrl(row.requestSummary)}
+                        </td>
+                        <td className="py-2 pr-3 text-foreground whitespace-nowrap">
+                          {row.model ?? "—"}
+                        </td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{row.httpStatus ?? "—"}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{row.processingTimeMs ?? "—"}</td>
+                        <td className="py-2">
+                          <span
+                            className={
+                              row.success
+                                ? outcomePositive
+                                  ? "text-success"
+                                  : "text-foreground/80"
+                                : "text-destructive"
+                            }
+                          >
+                            {outcome}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Error State */}

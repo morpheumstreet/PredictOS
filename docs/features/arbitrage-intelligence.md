@@ -85,6 +85,8 @@ flowchart TB
 
 6. **Results** — Returns detailed analysis including market comparison, profit potential, and risk factors
 
+The **Arbitrage Intelligence** UI also lists **recent searches** (last 20) from local SQLite (`terminal_local.sqlite` via `GET /api/agent-runs`). Use **Grafana** (and ClickHouse export) for fleet-wide or long-horizon analytics—not the terminal table.
+
 ---
 
 ## Arbitrage Strategy
