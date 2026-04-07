@@ -29,6 +29,23 @@ func TestParseGammaMarket_outcomes(t *testing.T) {
 	}
 }
 
+func TestParseGammaMarket_clobTokenIdsJSONString(t *testing.T) {
+	// Gamma sometimes returns clobTokenIds as a stringified JSON array.
+	raw := []byte(`{
+		"id": "x",
+		"question": "Q",
+		"clobTokenIds": "[\"tokYes\", \"tokNo\"]",
+		"active": true
+	}`)
+	m, err := parseGammaMarket(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.YesTokenID != "tokYes" || m.NoTokenID != "tokNo" {
+		t.Fatalf("tokens yes=%q no=%q", m.YesTokenID, m.NoTokenID)
+	}
+}
+
 func TestParseCLOBBook_strings(t *testing.T) {
 	raw := []byte(`{"bids":[{"price":"0.45","size":"100"}],"asks":[{"price":"0.55","size":"200"}]}`)
 	ob, err := parseCLOBBook(raw)

@@ -141,23 +141,50 @@ func (p *Polymarket) GetBalance(ctx context.Context) (map[string]decimal.Decimal
 	return nil, platforms.ErrTradingNotImplemented
 }
 
+func parseClobTokenIDs(raw json.RawMessage) (yesTok, noTok string) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", ""
+	}
+	var ids []string
+	if err := json.Unmarshal(raw, &ids); err == nil {
+		if len(ids) > 0 {
+			yesTok = ids[0]
+		}
+		if len(ids) > 1 {
+			noTok = ids[1]
+		}
+		return yesTok, noTok
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil && asString != "" {
+		_ = json.Unmarshal([]byte(asString), &ids)
+		if len(ids) > 0 {
+			yesTok = ids[0]
+		}
+		if len(ids) > 1 {
+			noTok = ids[1]
+		}
+	}
+	return yesTok, noTok
+}
+
 func parseGammaMarket(raw []byte) (platforms.Market, error) {
 	var gm struct {
-		ID           string          `json:"id"`
-		Slug         string          `json:"slug"`
-		Question     string          `json:"question"`
-		Title        string          `json:"title"`
-		Description  string          `json:"description"`
-		Category     string          `json:"category"`
-		Outcomes     json.RawMessage `json:"outcomes"`
-		YesPrice     json.RawMessage `json:"yesPrice"`
-		NoPrice      json.RawMessage `json:"noPrice"`
-		ClobTokenIds []string        `json:"clobTokenIds"`
-		Volume24hr   json.RawMessage `json:"volume24hr"`
-		Liquidity    json.RawMessage `json:"liquidity"`
-		EndDate      string          `json:"endDate"`
-		Active       bool            `json:"active"`
-		Closed       bool            `json:"closed"`
+		ID            string          `json:"id"`
+		Slug          string          `json:"slug"`
+		Question      string          `json:"question"`
+		Title         string          `json:"title"`
+		Description   string          `json:"description"`
+		Category      string          `json:"category"`
+		Outcomes      json.RawMessage `json:"outcomes"`
+		YesPrice      json.RawMessage `json:"yesPrice"`
+		NoPrice       json.RawMessage `json:"noPrice"`
+		ClobTokenIds  json.RawMessage `json:"clobTokenIds"`
+		Volume24hr    json.RawMessage `json:"volume24hr"`
+		Liquidity     json.RawMessage `json:"liquidity"`
+		EndDate       string          `json:"endDate"`
+		Active        bool            `json:"active"`
+		Closed        bool            `json:"closed"`
 	}
 	if err := json.Unmarshal(raw, &gm); err != nil {
 		return platforms.Market{}, err
@@ -193,13 +220,7 @@ func parseGammaMarket(raw []byte) (platforms.Market, error) {
 			exp = &t
 		}
 	}
-	yesTok, noTok := "", ""
-	if len(gm.ClobTokenIds) > 0 {
-		yesTok = gm.ClobTokenIds[0]
-	}
-	if len(gm.ClobTokenIds) > 1 {
-		noTok = gm.ClobTokenIds[1]
-	}
+	yesTok, noTok := parseClobTokenIDs(gm.ClobTokenIds)
 	vol := decFromFlexible(gm.Volume24hr)
 	liq := decFromFlexible(gm.Liquidity)
 	active := gm.Active && !gm.Closed

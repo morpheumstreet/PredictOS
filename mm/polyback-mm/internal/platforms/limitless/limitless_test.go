@@ -161,9 +161,9 @@ func TestLimitless_httptest(t *testing.T) {
 }
 
 func TestLimitless_ErrNotConfigured(t *testing.T) {
-	c := NewLimitless("", "", "")
+	c := NewLimitless("", "has-key", "")
 	ctx := context.Background()
-	if _, err := c.GetAllMarkets(ctx); err != platforms.ErrNotConfigured {
+	if _, err := c.ListOrders(ctx, nil); err != platforms.ErrNotConfigured {
 		t.Fatalf("got %v", err)
 	}
 }

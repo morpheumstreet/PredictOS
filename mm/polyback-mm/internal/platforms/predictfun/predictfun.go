@@ -17,7 +17,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const defaultBaseURL = "https://api.predict.fun"
+// API routes are under /v1 (see public 404 on /markets without version).
+const defaultBaseURL = "https://api.predict.fun/v1"
 
 // PredictFun is the Predict.fun REST client (API key + optional JWT via wallet signature).
 type PredictFun struct {

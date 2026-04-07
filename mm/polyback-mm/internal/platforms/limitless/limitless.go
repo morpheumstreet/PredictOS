@@ -42,21 +42,18 @@ func NewLimitless(baseURL, apiKey, walletAddress string) *Limitless {
 func (l *Limitless) Name() string { return "limitless" }
 
 func (l *Limitless) headers() map[string]string {
+	if l.apiKey == "" {
+		return map[string]string{}
+	}
 	return map[string]string{"X-API-Key": l.apiKey}
 }
 
 func (l *Limitless) HealthCheck(ctx context.Context) error {
-	if l.apiKey == "" {
-		return platforms.ErrNotConfigured
-	}
 	_, err := l.GetAllMarkets(ctx)
 	return err
 }
 
 func (l *Limitless) GetAllMarkets(ctx context.Context) ([]platforms.Market, error) {
-	if l.apiKey == "" {
-		return nil, platforms.ErrNotConfigured
-	}
 	b, err := platforms.DoJSONExpect2xx(ctx, l.client, http.MethodGet, l.baseURL+"/markets/active", l.headers(), nil)
 	if err != nil {
 		return nil, err
@@ -77,9 +74,6 @@ func (l *Limitless) GetAllMarkets(ctx context.Context) ([]platforms.Market, erro
 }
 
 func (l *Limitless) GetMarket(ctx context.Context, marketID string) (*platforms.Market, error) {
-	if l.apiKey == "" {
-		return nil, platforms.ErrNotConfigured
-	}
 	b, err := platforms.DoJSONExpect2xx(ctx, l.client, http.MethodGet, l.baseURL+"/markets/"+url.PathEscape(marketID), l.headers(), nil)
 	if err != nil {
 		return nil, err
@@ -110,9 +104,6 @@ func (l *Limitless) GetPrices(ctx context.Context, marketID string) (yes, no dec
 }
 
 func (l *Limitless) GetOrderbook(ctx context.Context, marketID string) (platforms.Orderbook, error) {
-	if l.apiKey == "" {
-		return platforms.Orderbook{}, platforms.ErrNotConfigured
-	}
 	b, err := platforms.DoJSONExpect2xx(ctx, l.client, http.MethodGet, l.baseURL+"/markets/"+url.PathEscape(marketID)+"/orderbook", l.headers(), nil)
 	if err != nil {
 		return platforms.Orderbook{}, err
@@ -265,6 +256,7 @@ func parseLimitlessMarket(raw []byte) (platforms.Market, error) {
 		EndDate             string            `json:"endDate"`
 		ExpirationTimestamp int64             `json:"expirationTimestamp"`
 		Status              string            `json:"status"`
+		Expired             bool              `json:"expired"`
 	}
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return platforms.Market{}, err
@@ -307,7 +299,10 @@ func parseLimitlessMarket(raw []byte) (platforms.Market, error) {
 	if len(m.PositionIds) > 1 {
 		noTok = m.PositionIds[1]
 	}
-	active := strings.EqualFold(m.Status, "active")
+	// Live API uses FUNDED, ACTIVE, etc.; treat explicit terminal states as inactive.
+	active := !m.Expired &&
+		!strings.EqualFold(m.Status, "resolved") &&
+		!strings.EqualFold(m.Status, "closed")
 
 	return platforms.Market{
 		ID:          fmt.Sprint(m.ID),
