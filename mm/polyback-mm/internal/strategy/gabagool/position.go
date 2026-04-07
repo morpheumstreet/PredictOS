@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/shopspring/decimal"
 )

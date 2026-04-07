@@ -16,8 +16,8 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/hftevents"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/httpserver"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/gamma"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/gamma"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/wiring"
 )
 

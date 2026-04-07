@@ -29,6 +29,21 @@ export interface ArbitrageMarketData {
   rawData?: unknown;
 }
 
+/** Estimated fees and net edge after applying per-platform bps (see enrichArbitrageWithFees) */
+export interface ArbitrageFeeAdjusted {
+  polymarketFeeBps: number;
+  kalshiFeeBps: number;
+  minNetProfitUsd: number;
+  estimatedFeeYes: number;
+  estimatedFeeNo: number;
+  totalFees: number;
+  totalCostAfterFees: number;
+  netProfitAfterFees: number;
+  profitPercentAfterFees: number | null;
+  /** True when net profit after fees exceeds minNetProfitUsd */
+  viableAfterFees: boolean;
+}
+
 /** Arbitrage opportunity details */
 export interface ArbitrageOpportunity {
   /** Whether an arb opportunity exists */
@@ -52,6 +67,8 @@ export interface ArbitrageOpportunity {
     /** Net profit */
     netProfit: number;
   };
+  /** Server-side fee model on top of gross strategy (optional until edge function runs enrich) */
+  feeAdjusted?: ArbitrageFeeAdjusted;
 }
 
 /** AI analysis result for arbitrage */

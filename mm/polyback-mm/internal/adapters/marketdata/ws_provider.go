@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/ports/input"
 	"github.com/shopspring/decimal"
 )

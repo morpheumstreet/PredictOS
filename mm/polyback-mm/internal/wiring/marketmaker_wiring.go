@@ -4,7 +4,7 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/adapters/marketdata"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/application/marketmaker"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/quoting"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/risk"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/toxicity"

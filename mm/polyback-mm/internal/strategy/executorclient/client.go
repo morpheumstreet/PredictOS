@@ -12,7 +12,7 @@ import (
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
 	"github.com/shopspring/decimal"
 )
 

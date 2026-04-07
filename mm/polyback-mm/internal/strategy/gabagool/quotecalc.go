@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
 	"github.com/shopspring/decimal"
 )

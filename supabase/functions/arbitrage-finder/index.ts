@@ -13,6 +13,7 @@
  * 7. Return results to frontend
  */
 
+import { enrichArbitrageWithFees } from "../_shared/arbitrage/feeAdjusted.ts";
 import { arbitrageAnalysisPrompt } from "../_shared/ai/prompts/arbitrageAnalysis.ts";
 import { searchQueryGeneratorPrompt } from "../_shared/ai/prompts/searchQueryGenerator.ts";
 import { callGrokResponses } from "../_shared/ai/callGrok.ts";
@@ -572,7 +573,7 @@ async function analyzeArbitrage(
     marketComparisonReasoning: parsed.marketComparisonReasoning,
     polymarketData: sourceEvent.source === 'polymarket' ? sourceMarket : parsed.matchedMarket || undefined,
     kalshiData: sourceEvent.source === 'kalshi' ? sourceMarket : parsed.matchedMarket || undefined,
-    arbitrage: parsed.arbitrage,
+    arbitrage: enrichArbitrageWithFees(parsed.arbitrage ?? { hasArbitrage: false }),
     summary: parsed.summary,
     risks: parsed.risks,
     recommendation: parsed.recommendation,

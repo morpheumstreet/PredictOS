@@ -5,7 +5,7 @@ Go implementation of trading services: executor, strategy, ingestor, analytics, 
 ## Design (SOLID-oriented)
 
 - **Ports** ([internal/executor/ports](internal/executor/ports)): HTTP depends on `OrderSimulator`, not on `*paper.Simulator` (DIP).
-- **Feeds** ([internal/polymarket/ws/ports.go](internal/polymarket/ws/ports.go)): `MarketFeed` / `TOBEventEmitter` keep WebSocket code free of full Kafka client concerns (ISP).
+- **Feeds** ([internal/platforms/polymarket/ws/ports.go](internal/platforms/polymarket/ws/ports.go)): `MarketFeed` / `TOBEventEmitter` keep WebSocket code free of full Kafka client concerns (ISP).
 - **Wiring** ([internal/wiring](internal/wiring)): composition-only adapters (e.g. `TOBFromPublisher`) live at the edge, not inside domain packages.
 - **HTTP** ([internal/executor/httpapi/handler.go](internal/executor/httpapi/handler.go)): `Polymarket` handler + `orderNotifier` separate transport from event publishing (SRP).
 - **Metrics**: Prometheus counters are constructed explicitly and injected, not package globals (testability).

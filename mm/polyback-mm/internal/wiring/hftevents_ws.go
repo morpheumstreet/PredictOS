@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/hftevents"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 )
 
 type tobFromPublisher struct {

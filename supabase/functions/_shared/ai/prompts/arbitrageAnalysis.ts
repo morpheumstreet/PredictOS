@@ -39,6 +39,7 @@ Important considerations:
 - Even small wording differences can lead to different outcomes
 - Be conservative in matching - when in doubt, say they're NOT the same market
 - Consider timing differences (different end dates = different markets)
+- Use quoted prices only for gross totals; the API applies per-platform trading fees (basis points) afterward — do not try to estimate fees in your JSON
 
 Your output must be valid JSON matching the exact schema specified.`;
 

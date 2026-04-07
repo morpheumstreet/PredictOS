@@ -29,6 +29,20 @@ export interface ArbitrageMarketData {
   rawData?: unknown;
 }
 
+/** Estimated fees and net edge after applying per-platform bps */
+export interface ArbitrageFeeAdjusted {
+  polymarketFeeBps: number;
+  kalshiFeeBps: number;
+  minNetProfitUsd: number;
+  estimatedFeeYes: number;
+  estimatedFeeNo: number;
+  totalFees: number;
+  totalCostAfterFees: number;
+  netProfitAfterFees: number;
+  profitPercentAfterFees: number | null;
+  viableAfterFees: boolean;
+}
+
 /** Arbitrage opportunity details */
 export interface ArbitrageOpportunity {
   /** Whether an arb opportunity exists */
@@ -52,6 +66,7 @@ export interface ArbitrageOpportunity {
     /** Net profit */
     netProfit: number;
   };
+  feeAdjusted?: ArbitrageFeeAdjusted;
 }
 
 /** AI analysis result for arbitrage */

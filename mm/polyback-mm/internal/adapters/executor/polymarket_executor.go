@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/ports/output"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/shopspring/decimal"

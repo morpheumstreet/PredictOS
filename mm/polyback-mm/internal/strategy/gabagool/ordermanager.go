@@ -9,9 +9,9 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/hftevents"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/shopspring/decimal"
 )
 

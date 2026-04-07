@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 )
 
 // SubscribeSnapshots is equivalent to (*WSProvider).SubscribeL2. The CLOB argument is unused;

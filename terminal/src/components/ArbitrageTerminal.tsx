@@ -356,13 +356,21 @@ const ArbitrageTerminal = () => {
           <div className="space-y-6">
             {/* Summary Card */}
             <div className={`rounded-xl p-6 terminal-border ${
-              result.arbitrage.hasArbitrage 
-                ? 'bg-success/10 border-success/30' 
-                : 'bg-card'
+              result.arbitrage.hasArbitrage &&
+              result.arbitrage.feeAdjusted &&
+              !result.arbitrage.feeAdjusted.viableAfterFees
+                ? 'bg-amber-500/10 border-amber-500/30'
+                : result.arbitrage.hasArbitrage
+                  ? 'bg-success/10 border-success/30'
+                  : 'bg-card'
             }`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  {result.arbitrage.hasArbitrage ? (
+                  {result.arbitrage.hasArbitrage && result.arbitrage.feeAdjusted && !result.arbitrage.feeAdjusted.viableAfterFees ? (
+                    <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                    </div>
+                  ) : result.arbitrage.hasArbitrage ? (
                     <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center">
                       <TrendingUp className="w-6 h-6 text-success" />
                     </div>
@@ -373,9 +381,11 @@ const ArbitrageTerminal = () => {
                   )}
                   <div>
                     <h2 className="text-lg font-bold text-foreground">
-                      {result.arbitrage.hasArbitrage 
-                        ? '🎯 Arbitrage Opportunity Found!' 
-                        : 'No Arbitrage Opportunity'}
+                      {result.arbitrage.hasArbitrage && result.arbitrage.feeAdjusted && !result.arbitrage.feeAdjusted.viableAfterFees
+                        ? 'Gross edge only — not viable after estimated fees'
+                        : result.arbitrage.hasArbitrage
+                          ? '🎯 Arbitrage Opportunity Found!'
+                          : 'No Arbitrage Opportunity'}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                       {result.isSameMarket 
@@ -386,11 +396,19 @@ const ArbitrageTerminal = () => {
                 </div>
 
                 {result.arbitrage.hasArbitrage && result.arbitrage.profitPercent && (
-                  <div className="text-right">
+                  <div className="text-right space-y-1">
                     <div className="text-2xl font-bold text-success">
                       +{result.arbitrage.profitPercent.toFixed(2)}%
                     </div>
-                    <div className="text-xs text-muted-foreground">Potential Profit</div>
+                    <div className="text-xs text-muted-foreground">Gross profit (before fees)</div>
+                    {result.arbitrage.feeAdjusted?.profitPercentAfterFees != null && (
+                      <div className={`text-lg font-semibold ${
+                        result.arbitrage.feeAdjusted.viableAfterFees ? 'text-success' : 'text-amber-600 dark:text-amber-400'
+                      }`}>
+                        {result.arbitrage.feeAdjusted.netProfitAfterFees >= 0 ? '+' : ''}
+                        {result.arbitrage.feeAdjusted.profitPercentAfterFees.toFixed(2)}% after fees
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -452,6 +470,73 @@ const ArbitrageTerminal = () => {
                     </div>
                   </div>
                 </div>
+
+                {result.arbitrage.feeAdjusted && (
+                  <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+                    <h4 className="text-xs font-mono text-primary uppercase tracking-wider mb-3">
+                      After estimated trading fees
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Fees apply per leg as basis points on that leg&apos;s premium (Polymarket{' '}
+                      {result.arbitrage.feeAdjusted.polymarketFeeBps} bps, Kalshi{' '}
+                      {result.arbitrage.feeAdjusted.kalshiFeeBps} bps). Set via edge function env{' '}
+                      <span className="font-mono">ARBITRAGE_*_FEE_BPS</span>.
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Fee (YES leg)</div>
+                        <div className="font-mono font-medium">
+                          ${result.arbitrage.feeAdjusted.estimatedFeeYes.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Fee (NO leg)</div>
+                        <div className="font-mono font-medium">
+                          ${result.arbitrage.feeAdjusted.estimatedFeeNo.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Total fees</div>
+                        <div className="font-mono font-medium">
+                          ${result.arbitrage.feeAdjusted.totalFees.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Min net profit floor</div>
+                        <div className="font-mono font-medium">
+                          ${result.arbitrage.feeAdjusted.minNetProfitUsd.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-center border-t border-border pt-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase mb-1">Cost incl. fees</div>
+                        <div className="text-lg font-bold text-foreground">
+                          ${result.arbitrage.feeAdjusted.totalCostAfterFees.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase mb-1">Payout</div>
+                        <div className="text-lg font-bold text-foreground">
+                          ${result.arbitrage.strategy.guaranteedPayout.toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase mb-1">Net after fees</div>
+                        <div
+                          className={`text-lg font-bold ${
+                            result.arbitrage.feeAdjusted.viableAfterFees
+                              ? 'text-success'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {result.arbitrage.feeAdjusted.netProfitAfterFees >= 0 ? '+' : ''}
+                          ${result.arbitrage.feeAdjusted.netProfitAfterFees.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/gamma"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/gamma"
 )
 
 type Discovery struct {

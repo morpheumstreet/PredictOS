@@ -12,7 +12,7 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/application/marketmaker"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/executorclient"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/metrics"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/strategy/risk"

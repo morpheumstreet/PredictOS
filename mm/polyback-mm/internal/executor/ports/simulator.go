@@ -4,7 +4,7 @@ package ports
 import (
 	"encoding/json"
 
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
 )
 
 // OrderSimulator abstracts paper vs live order execution (DIP). HTTP layer depends on this port.

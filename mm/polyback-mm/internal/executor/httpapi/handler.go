@@ -13,8 +13,8 @@ import (
 	execevents "github.com/profitlock/PredictOS/mm/polyback-mm/internal/executor/events"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/executor/ports"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/hftevents"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/shopspring/decimal"
 )
 

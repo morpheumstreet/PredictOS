@@ -15,9 +15,9 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/domain"
 	execevents "github.com/profitlock/PredictOS/mm/polyback-mm/internal/executor/events"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/hftevents"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/api"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/gamma"
-	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/polymarket/ws"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/api"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/gamma"
+	polyws "github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/ws"
 	"github.com/shopspring/decimal"
 )
 
