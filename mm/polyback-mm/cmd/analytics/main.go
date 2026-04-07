@@ -33,6 +33,7 @@ func main() {
 	}
 
 	r := chi.NewRouter()
+	httpserver.UseCORSIfConfigured(r, root.Server.CorsAllowedOrigins)
 	r.Use(middleware.Logger, middleware.Recoverer)
 	r.Get("/actuator/health", httpserver.ActuatorHealth)
 	r.Handle("/metrics", httpserver.MetricsHandler())

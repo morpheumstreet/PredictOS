@@ -208,6 +208,9 @@ type KafkaCfg struct {
 }
 
 type ServerCfg struct {
+	// CorsAllowedOrigins lists browser origins allowed for cross-origin requests (e.g. PredictOS terminal).
+	// When empty, CORS middleware is not applied.
+	CorsAllowedOrigins []string `yaml:"cors_allowed_origins"`
 	// PublicAPIBaseURL is the canonical HTTP base for browsers and the terminal (no trailing path).
 	PublicAPIBaseURL string `yaml:"public_api_base_url"`
 	// ClientConfigEnabled when false disables GET /api/v1/config/client on this process. Nil/absent means enabled.

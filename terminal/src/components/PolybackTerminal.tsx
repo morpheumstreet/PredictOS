@@ -73,7 +73,7 @@ export default function PolybackTerminal() {
 
     const entries = await Promise.all(
       PROBES.map(async (p) => {
-        const r = await polybackRelayJson<unknown>(p.target, p.path);
+        const r = await polybackRelayJson<unknown>(p.target, p.path, { clientConfig: config });
         const jsonStr = r.data !== undefined ? JSON.stringify(r.data) : "";
         const summary =
           r.ok && jsonStr.length > 0
@@ -119,9 +119,11 @@ export default function PolybackTerminal() {
           <div>
             <h1 className="text-2xl font-bold text-foreground font-display">Polyback MM</h1>
             <p className="text-sm text-muted-foreground">
-              YAML-backed client config and service health via same-origin relay (
+              YAML-backed client config and probes. Default: Bun relay (
               <code className="text-xs bg-muted px-1 rounded">POLYBACK_BOOTSTRAP_URL</code>
-              ).
+              ). Optional browser → Go:{" "}
+              <code className="text-xs bg-muted px-1 rounded">POLYBACK_BROWSER_BOOTSTRAP_URL</code>{" "}
+              + polyback-mm <code className="text-xs bg-muted px-1 rounded">cors_allowed_origins</code>.
             </p>
           </div>
         </div>

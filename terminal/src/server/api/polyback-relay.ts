@@ -4,6 +4,8 @@
  * Only GET; path allowlist to avoid open proxy abuse.
  */
 
+import { isAllowedPolybackRelayPath } from "@/lib/polyback-relay-paths";
+
 type ServiceTarget = "executor" | "strategy" | "analytics" | "ingestor" | "infrastructure";
 
 type CachedClientConfig = {
@@ -21,22 +23,6 @@ const VALID_TARGETS: ServiceTarget[] = [
   "ingestor",
   "infrastructure",
 ];
-
-const ALLOWED_PATH_PREFIXES = [
-  "/api/polymarket",
-  "/api/strategy",
-  "/api/ingestor",
-  "/api/analytics",
-  "/api/infrastructure",
-  "/actuator",
-];
-
-function isAllowedPath(path: string): boolean {
-  if (!path.startsWith("/") || path.includes("..")) {
-    return false;
-  }
-  return ALLOWED_PATH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
-}
 
 async function fetchGoClientConfig(): Promise<Record<string, unknown>> {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
@@ -67,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
   const target = url.searchParams.get("target") as ServiceTarget | null;
   const path = url.searchParams.get("path");
 
-  if (!target || !VALID_TARGETS.includes(target) || !path || !isAllowedPath(path)) {
+  if (!target || !VALID_TARGETS.includes(target) || !path || !isAllowedPolybackRelayPath(path)) {
     return Response.json(
       { error: "Invalid or missing target/path (path must match an allowed API prefix)" },
       { status: 400 }

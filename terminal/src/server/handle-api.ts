@@ -12,6 +12,7 @@ import * as limitOrderBot from "@/server/api/limit-order-bot";
 import * as mapperAgent from "@/server/api/mapper-agent";
 import * as polymarketPutOrder from "@/server/api/polymarket-put-order";
 import * as polybackConfigClient from "@/server/api/polyback-config-client";
+import * as polybackOptions from "@/server/api/polyback-options";
 import * as polybackRelay from "@/server/api/polyback-relay";
 import * as polyfactualResearch from "@/server/api/polyfactual-research";
 import * as positionTracker from "@/server/api/position-tracker";
@@ -45,6 +46,7 @@ const routes: Record<string, ApiRouteHandlers> = {
   "/api/polymarket-put-order": { POST: polymarketPutOrder.POST },
   "/api/polyfactual-research": { POST: polyfactualResearch.POST },
   "/api/polyback/config/client": { GET: polybackConfigClient.GET },
+  "/api/polyback/options": { GET: polybackOptions.GET },
   "/api/polyback/relay": { GET: polybackRelay.GET },
   "/api/position-tracker": { POST: positionTracker.POST },
   "/api/wallet-tracking": { GET: walletTracking.GET },

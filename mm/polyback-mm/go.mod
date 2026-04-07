@@ -5,7 +5,9 @@ go 1.22
 require (
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/go-chi/chi/v5 v5.1.0
+	github.com/go-chi/cors v1.2.1
 	github.com/gorilla/websocket v1.4.2
+	github.com/imdario/mergo v0.3.16
 	github.com/prometheus/client_golang v1.12.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/twmb/franz-go v1.17.1
@@ -18,7 +20,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/holiman/uint256 v1.3.1 // indirect
-	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect

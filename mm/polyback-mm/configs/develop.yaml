@@ -125,6 +125,10 @@ kafka:
 server:
   # Canonical base URL for terminal / browsers (must match reachable executor API in dev).
   public_api_base_url: http://127.0.0.1:8080
+  # Browser → polyback-mm without Bun relay: set POLYBACK_BROWSER_BOOTSTRAP_URL on the terminal, then uncomment:
+  # cors_allowed_origins:
+  #   - http://localhost:3000
+  #   - http://127.0.0.1:3000
   executor_addr: :8080
   strategy_addr: :8081
   analytics_addr: :8082
