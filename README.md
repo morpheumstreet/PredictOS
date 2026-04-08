@@ -152,77 +152,33 @@ PredictOS uses specialized data providers for each prediction market platform:
 
 ```
 PredictOS/
-├── terminal/                        # Frontend (Next.js 14)
+├── terminal/                        # Frontend (Bun + React; server/api proxies to Polyback)
 │   ├── src/
-│   │   ├── app/                     # Next.js App Router
-│   │   │   ├── api/                 # API routes (proxy to Edge Functions)
-│   │   │   │   ├── arbitrage-finder/   # Arbitrage Intelligence proxy
-│   │   │   │   ├── bookmaker-agent/
-│   │   │   │   ├── event-analysis-agent/
-│   │   │   │   ├── get-events/
-│   │   │   │   ├── irys-upload/        # Verifiable Agents - Irys blockchain upload
-│   │   │   │   ├── mapper-agent/
-│   │   │   │   ├── polyfactual-research/
-│   │   │   │   ├── polymarket-put-order/
-│   │   │   │   ├── wallet-tracking/
-│   │   │   │   └── x402-seller/         # x402/PayAI integration
+│   │   ├── app/                     # App routes and pages
 │   │   │   ├── arbitrage/           # Arbitrage Intelligence UI
 │   │   │   ├── market-analysis/     # Super Intelligence UI
 │   │   │   ├── betting-bots/        # Betting Bots UI
 │   │   │   └── wallet-tracking/     # Wallet Tracking UI
+│   │   ├── server/api/              # Bun POST/GET handlers → Polyback Intelligence / executor
 │   │   ├── components/              # React components
-│   │   │   ├── AgenticMarketAnalysis.tsx   # Super Intelligence component
-│   │   │   ├── ArbitrageTerminal.tsx       # Arbitrage Intelligence component
-│   │   │   ├── BettingBotTerminal.tsx
-│   │   │   └── WalletTrackingTerminal.tsx
-│   │   ├── lib/                     # Utility libraries
-│   │   │   ├── irys.ts              # Irys blockchain integration
-│   │   │   └── utils.ts
-│   │   └── types/                   # TypeScript definitions
+│   │   ├── lib/                     # Utilities (e.g. intelligence URL helpers)
+│   │   └── types/
 │   └── public/                      # Static assets
 │
-└── supabase/                        # Backend (Supabase Edge Functions)
-    └── functions/
-        ├── _shared/                 # Shared utilities
-        │   ├── ai/                  # AI integrations (xAI Grok & OpenAI)
-        │   │   ├── callGrok.ts
-        │   │   ├── callOpenAI.ts
-        │   │   └── prompts/         # Agent prompts
-        │   │       ├── arbitrageAnalysis.ts      # Arbitrage comparison prompt
-        │   │       └── searchQueryGenerator.ts   # Cross-platform search prompt
-        │   ├── dflow/               # DFlow API client (Kalshi data)
-        │   │   ├── client.ts
-        │   │   ├── endpoints.ts
-        │   │   └── types.ts
-        │   ├── dome/                # Dome API client (Polymarket data)
-        │   │   ├── client.ts
-        │   │   ├── endpoints.ts
-        │   │   └── types.ts
-        │   ├── polyfactual/         # Polyfactual Research client
-        │   ├── polymarket/          # Polymarket trading client
-        │   └── x402/                # x402/PayAI protocol client
-        │       ├── client.ts        # Bazaar discovery & payment handling
-        │       └── types.ts
-        ├── arbitrage-finder/        # Arbitrage Intelligence endpoint
-        ├── get-events/              # Fetch market data from URL
-        ├── event-analysis-agent/    # Individual agent analysis
-        ├── bookmaker-agent/         # Multi-agent aggregator
-        ├── mapper-agent/            # Analysis-to-order translator
-        ├── polymarket-put-order/    # Order execution
-        ├── polyfactual-research/    # Deep research endpoint
-        ├── x402-seller/             # x402/PayAI bazaar & seller calls
-        └── polymarket-up-down-.../  # Betting bot endpoint
+└── mm/polyback-mm/                  # Go services (executor, strategy, intelligence, …)
+    ├── cmd/intelligence/            # HTTP :8085 — agents, get-events, x402, trading helpers
+    ├── internal/intelligence/       # Handlers, LLM adapters, use cases, mapping, fee math
+    └── docs/API.md                 # Routes and required env vars for each binary
 ```
 
-> 💡 **Extensibility:** New agents and features are added as Edge Functions under `supabase/functions/<feature-name>/` with shared logic in `_shared/`. The modular architecture allows mixing different AI providers, tools, and execution strategies.
+> 💡 **Extensibility:** Agent and market-fetch logic lives in `mm/polyback-mm/internal/intelligence/` (Go). The terminal keeps a thin Bun proxy under `terminal/src/server/api/` so the browser never holds provider API keys.
 
 ## 🏁 Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18+
-- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) v1.0+
-- [Docker](https://www.docker.com/) (for local Supabase)
+- [Bun](https://bun.sh/) (terminal runtime and package manager)
+- [Go 1.22+](https://go.dev/) (Polyback MM services, including Intelligence on `:8085`)
 
 ### 1. Clone the Repository
 
@@ -231,104 +187,52 @@ git clone https://github.com/PredictionXBT/PredictOS.git
 cd PredictOS
 ```
 
-### 2. Start the Backend (Supabase)
+### 2. Start Polyback Intelligence (agents and market APIs)
+
+The PredictOS terminal calls **`INTELLIGENCE_BASE_URL`** (default `http://127.0.0.1:8085`). Provider secrets are read from the **environment of the intelligence process**, not from the browser.
 
 ```bash
-# Navigate to supabase directory
-cd supabase
+cd mm/polyback-mm
+# Export keys required for the features you use (see mm/polyback-mm/docs/API.md and feature guides below)
+export DFLOW_API_KEY=...
+export DOME_API_KEY=...
+export OPENAI_API_KEY=...   # and/or XAI_API_KEY, POLYFACTUAL_API_KEY, etc.
 
-# Copy environment template and add your API keys
-cp .env.example .env.local
+bash scripts/run-intelligence.sh
 ```
 
-Edit `.env.local` with the credentials required for the features you want to use:
-
-> 📖 **Feature-specific setup guides:**
-> - **Super Intelligence:** [docs/features/super-intelligence.md](docs/features/super-intelligence.md) — requires `DOME_API_KEY` (Polymarket) + `DFLOW_API_KEY` (Kalshi) + AI provider keys (`XAI_API_KEY` and/or `OPENAI_API_KEY`). Optional: `POLYFACTUAL_API_KEY` for Polyfactual tool. For Autonomous mode: `POLYMARKET_WALLET_PRIVATE_KEY` + `POLYMARKET_PROXY_WALLET_ADDRESS`.
-> - **Betting Bots:** [docs/features/betting-bots.md](docs/features/betting-bots.md) — requires `POLYMARKET_WALLET_PRIVATE_KEY` + `POLYMARKET_PROXY_WALLET_ADDRESS`
-> - **Wallet Tracking:** [docs/features/wallet-tracking.md](docs/features/wallet-tracking.md) — requires `DOME_API_KEY` (frontend only, no Supabase needed)
-
-Example for Super Intelligence (full setup):
-
-```env
-# Market Data Providers
-DOME_API_KEY=your_dome_api_key              # Get from https://dashboard.domeapi.io (for Polymarket)
-DFLOW_API_KEY=your_dflow_api_key            # Contact DFlow: https://x.com/dflow (for Kalshi)
-
-# AI Providers (configure one or both)
-XAI_API_KEY=your_xai_api_key                # Get from https://x.ai
-OPENAI_API_KEY=your_openai_api_key          # Get from https://platform.openai.com
-
-# Polyfactual Tool (optional, enables Polyfactual research tool)
-POLYFACTUAL_API_KEY=your_polyfactual_key    # Contact Polyfactual to obtain
-
-# Autonomous Mode (optional, for auto-execution on Polymarket)
-POLYMARKET_WALLET_PRIVATE_KEY=0x...         # Your wallet private key
-POLYMARKET_PROXY_WALLET_ADDRESS=0x...       # Your Polymarket proxy wallet
-```
-
-> 💡 **Note:** See the setup guides linked above for detailed instructions on obtaining each API key and configuration.
-
-Start the Supabase services:
+Or start the full Polyback MM stack (executor, strategy, intelligence, …):
 
 ```bash
-supabase start
+cd mm/polyback-mm
+bash scripts/start-all-services.sh
 ```
 
-Once running, get your local credentials (you'll need these for the frontend):
-
-```bash
-supabase status
-```
-
-This will display your `API URL` and `anon key` — save these for the next step.
-
-Now start the Edge Functions server (keep this running):
-
-```bash
-supabase functions serve --env-file .env.local
-```
+> 📖 **Feature-specific setup guides (same keys as before, different process):**
+> - **Super Intelligence:** [docs/features/super-intelligence.md](docs/features/super-intelligence.md)
+> - **Betting Bots:** [docs/features/betting-bots.md](docs/features/betting-bots.md)
+> - **Wallet Tracking:** [docs/features/wallet-tracking.md](docs/features/wallet-tracking.md) — `DOME_API_KEY` in `terminal/.env` only
 
 ### 3. Start the Frontend (Terminal)
 
 Open a **new** terminal:
 
 ```bash
-# Navigate to terminal directory
 cd terminal
-
-# Install dependencies
-npm install
-
-# Copy environment template
 cp .env.example .env
+bun install
 ```
 
-Edit `.env` with credentials from `supabase status`:
+Edit `terminal/.env` and set at least:
 
 ```env
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
-
-# Edge Function URLs (for local development)
-# Note that the base url might vary depending on `supabase status`:
-
-# Super Intelligence endpoints
-SUPABASE_EDGE_FUNCTION_GET_EVENTS=http://127.0.0.1:54321/functions/v1/get-events
-SUPABASE_EDGE_FUNCTION_EVENT_ANALYSIS_AGENT=http://127.0.0.1:54321/functions/v1/event-analysis-agent
-SUPABASE_EDGE_FUNCTION_BOOKMAKER_AGENT=http://127.0.0.1:54321/functions/v1/bookmaker-agent
-SUPABASE_EDGE_FUNCTION_MAPPER_AGENT=http://127.0.0.1:54321/functions/v1/mapper-agent
-SUPABASE_EDGE_FUNCTION_POLYMARKET_PUT_ORDER=http://127.0.0.1:54321/functions/v1/polymarket-put-order
-SUPABASE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH=http://127.0.0.1:54321/functions/v1/polyfactual-research
-
-# Betting Bots endpoint
-SUPABASE_EDGE_FUNCTION_BETTING_BOT=http://127.0.0.1:54321/functions/v1/polymarket-up-down-15-markets
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
 ```
 
 Start the development server:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Your PredictOS terminal will be running at [http://localhost:3000](http://localhost:3000)
@@ -342,7 +246,7 @@ Your PredictOS terminal will be running at [http://localhost:3000](http://localh
 - [Lucide React](https://lucide.dev/) — Icon library
 
 **Backend:**
-- [Supabase Edge Functions](https://supabase.com/docs/guides/functions) — Serverless Deno runtime
+- [Polyback MM / Intelligence](mm/polyback-mm/) — Go HTTP service (`POST /api/intelligence/*` on `:8085`)
 - [DFlow API](https://pond.dflow.net/introduction) — Kalshi prediction market data
 - [Dome API](https://domeapi.io/) — Polymarket data & trading
 - [xAI Grok](https://x.ai/) — xAI's reasoning models (Grok 4, Grok 4.1)

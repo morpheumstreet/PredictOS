@@ -48,7 +48,7 @@ bash scripts/start-all-services.sh
 bash scripts/stop-all-services.sh
 ```
 
-Ports match the historical polybot layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`.
+Ports match the historical polybot layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`, intelligence `8085`.
 
 ## Research (Python)
 

@@ -3,6 +3,7 @@ import * as descriptionAgentStrategies from "@/server/api/description-agent-stra
 import * as descriptionAgentStrategiesExpand from "@/server/api/description-agent-strategies-expand";
 import * as descriptionAgentStrategyStatus from "@/server/api/description-agent-strategy-status";
 import * as agentRuns from "@/server/api/agent-runs";
+import * as analyzeEventMarkets from "@/server/api/analyze-event-markets";
 import * as arbitrageFinder from "@/server/api/arbitrage-finder";
 import * as bookmakerAgent from "@/server/api/bookmaker-agent";
 import * as eventAnalysisAgent from "@/server/api/event-analysis-agent";
@@ -36,6 +37,7 @@ const routes: Record<string, ApiRouteHandlers> = {
     GET: descriptionAgentStrategyStatus.GET,
   },
   "/api/agent-runs": { GET: agentRuns.GET },
+  "/api/analyze-event-markets": { POST: analyzeEventMarkets.POST },
   "/api/arbitrage-finder": { POST: arbitrageFinder.POST },
   "/api/bookmaker-agent": { POST: bookmakerAgent.POST },
   "/api/event-analysis-agent": { POST: eventAnalysisAgent.POST },

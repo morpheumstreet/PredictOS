@@ -1,4 +1,5 @@
 import type { ArbitrageRequest, ArbitrageResponse } from "@/types/arbitrage";
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 import { tryInsertAgentRun } from "@/server/local-run-log-db";
 
 const FEATURE = "arbitrage_finder";
@@ -57,9 +58,6 @@ export async function POST(request: Request) {
   };
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
     let body: ArbitrageRequest;
     try {
       body = await request.json();
@@ -80,27 +78,6 @@ export async function POST(request: Request) {
           error: "Invalid JSON in request body",
         },
         { status: 400 }
-      );
-    }
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      const reqSummary = JSON.stringify({ url: body.url ?? "", model: body.model ?? "" });
-      logRequest({
-        body,
-        success: false,
-        httpStatus: 500,
-        errorMessage: "Missing Supabase credentials",
-        model: body.model ?? null,
-        processingTimeMs: null,
-        requestSummary: reqSummary,
-        responseSummary: JSON.stringify({ configError: "supabase" }),
-      });
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
       );
     }
 
@@ -146,16 +123,14 @@ export async function POST(request: Request) {
 
     const requestSummary = JSON.stringify({ url: body.url, model: body.model });
 
-    const edgeFunctionUrl =
-      process.env.SUPABASE_EDGE_FUNCTION_ARBITRAGE_FINDER ||
-      `${supabaseUrl}/functions/v1/arbitrage-finder`;
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_ARBITRAGE_FINDER?.trim() ||
+      intelligenceApiUrl("arbitrage-finder");
 
-    const response = await fetch(edgeFunctionUrl, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({
         url: body.url,

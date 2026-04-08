@@ -15,7 +15,7 @@ import (
 
 const defaultBaseURL = "https://a.prediction-markets-api.dflow.net/api/v1"
 
-// KalshiDFlow lists Kalshi-shaped markets for one event ticker via DFlow (see supabase _shared/dflow).
+// KalshiDFlow lists Kalshi-shaped markets for one event ticker via DFlow.
 type KalshiDFlow struct {
 	baseURL     string
 	apiKey      string

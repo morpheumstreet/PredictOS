@@ -98,7 +98,11 @@ func callBlockRun(ctx context.Context, hc *http.Client, model, systemPrompt, use
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return "", "", nil, nil, fmt.Errorf("blockrun: %d %s", resp.StatusCode, string(b))
 		}
-		return parseChatCompletion(b, paymentCost)
+		t, m, tok, err := parseChatCompletion(b)
+		if err != nil {
+			return "", "", nil, nil, err
+		}
+		return t, m, tok, nil, nil
 	}
 
 	hdr := resp.Header.Get("payment-required")
@@ -168,7 +172,7 @@ func callBlockRun(ctx context.Context, hc *http.Client, model, systemPrompt, use
 	if resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
 		return "", "", nil, &pc, fmt.Errorf("blockrun paid: %d %s", resp2.StatusCode, string(b2))
 	}
-	t, m, tok, err := parseChatCompletion(b2, &pc)
+	t, m, tok, err := parseChatCompletion(b2)
 	return t, m, tok, &pc, err
 }
 
@@ -182,7 +186,7 @@ func formatUsdc(atomic string) string {
 	return fmt.Sprintf("$%.6f", v)
 }
 
-func parseChatCompletion(b []byte, paymentCost *string) (text string, model string, totalTokens *int, err error) {
+func parseChatCompletion(b []byte) (text string, model string, totalTokens *int, err error) {
 	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return "", "", nil, err

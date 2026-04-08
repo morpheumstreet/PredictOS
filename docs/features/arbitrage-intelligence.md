@@ -115,7 +115,7 @@ When an arbitrage opportunity is found, the system provides a complete strategy:
 
 ## Required Environment Variables
 
-Add these to your `supabase/.env.local` file:
+Export these in the environment of the **Polyback Intelligence** process (`mm/polyback-mm`, see [`docs/API.md`](../../mm/polyback-mm/docs/API.md)):
 
 ### 1. DFlow API Key (Required for Kalshi)
 
@@ -163,7 +163,7 @@ OPENAI_API_KEY=your_openai_api_key
 
 ## Complete Example
 
-Your `supabase/.env.local` file should include:
+Your intelligence process environment should include:
 
 ```env
 # =============================================================================
@@ -183,28 +183,24 @@ OPENAI_API_KEY=your_openai_api_key  # Option B: OpenAI GPT
 In addition to the backend variables above, configure the frontend (`terminal/.env`):
 
 ```env
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
-
-# Edge Function URL (for local development)
-SUPABASE_EDGE_FUNCTION_ARBITRAGE_FINDER=http://127.0.0.1:54321/functions/v1/arbitrage-finder
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
+# Optional: INTELLIGENCE_EDGE_FUNCTION_ARBITRAGE_FINDER=http://127.0.0.1:8085/api/intelligence/arbitrage-finder
 ```
 
 ## Verification
 
 After setting up your environment variables:
 
-1. Start the Supabase services:
+1. Start Polyback Intelligence (from repo root):
    ```bash
-   cd supabase
-   supabase start
-   supabase functions serve --env-file .env.local
+   cd mm/polyback-mm
+   bash scripts/run-intelligence.sh
    ```
 
 2. Start the frontend:
    ```bash
    cd terminal
-   npm run dev
+   bun run dev
    ```
 
 3. Navigate to [http://localhost:3000/arbitrage](http://localhost:3000/arbitrage)

@@ -184,7 +184,9 @@ flowchart LR
 
 ## Required Environment Variables
 
-### Backend Configuration (`supabase/.env.local`)
+### Polyback Intelligence (environment for `mm/polyback-mm` `bin/intelligence`)
+
+Set these variables in the shell (or your process manager) **before** starting the intelligence binary — for example `export VAR=...` then `bash mm/polyback-mm/scripts/run-intelligence.sh`. See also [`mm/polyback-mm/docs/API.md`](../../mm/polyback-mm/docs/API.md).
 
 #### 1. Data Providers
 
@@ -296,23 +298,23 @@ POLYMARKET_PROXY_WALLET_ADDRESS=your_proxy_wallet_address
 ### Frontend Configuration (`terminal/.env`)
 
 ```env
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
+# Base URL for Bun /api/* → Polyback Intelligence (default matches local intelligence)
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
 
-# Super Intelligence Edge Function URLs (for local development)
-SUPABASE_EDGE_FUNCTION_GET_EVENTS=http://127.0.0.1:54321/functions/v1/get-events
-SUPABASE_EDGE_FUNCTION_EVENT_ANALYSIS_AGENT=http://127.0.0.1:54321/functions/v1/event-analysis-agent
-SUPABASE_EDGE_FUNCTION_BOOKMAKER_AGENT=http://127.0.0.1:54321/functions/v1/bookmaker-agent
-SUPABASE_EDGE_FUNCTION_MAPPER_AGENT=http://127.0.0.1:54321/functions/v1/mapper-agent
-SUPABASE_EDGE_FUNCTION_POLYMARKET_PUT_ORDER=http://127.0.0.1:54321/functions/v1/polymarket-put-order
-SUPABASE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH=http://127.0.0.1:54321/functions/v1/polyfactual-research
+# Optional per-route overrides (full URL to POST /api/intelligence/... if you split services)
+# INTELLIGENCE_EDGE_FUNCTION_GET_EVENTS=http://127.0.0.1:8085/api/intelligence/get-events
+# INTELLIGENCE_EDGE_FUNCTION_EVENT_ANALYSIS_AGENT=http://127.0.0.1:8085/api/intelligence/event-analysis-agent
+# INTELLIGENCE_EDGE_FUNCTION_BOOKMAKER_AGENT=http://127.0.0.1:8085/api/intelligence/bookmaker-agent
+# INTELLIGENCE_EDGE_FUNCTION_MAPPER_AGENT=http://127.0.0.1:8085/api/intelligence/mapper-agent
+# INTELLIGENCE_EDGE_FUNCTION_POLYMARKET_PUT_ORDER=http://127.0.0.1:8085/api/intelligence/polymarket-put-order
+# INTELLIGENCE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH=http://127.0.0.1:8085/api/intelligence/polyfactual-research
 ```
 
 ---
 
 ## Complete Environment Example
 
-### Full `supabase/.env.local` for Super Intelligence:
+### Full environment example for Super Intelligence (intelligence process):
 
 ```env
 # =============================================================================
@@ -358,8 +360,8 @@ POLYMARKET_PROXY_WALLET_ADDRESS=0x...your_proxy_wallet
 
 ### Step 1: Navigate to Market Analysis
 
-1. Start the Supabase backend: `cd supabase && supabase functions serve --env-file .env.local`
-2. Start the frontend: `cd terminal && npm run dev`
+1. Start Polyback Intelligence: `cd mm/polyback-mm && bash scripts/run-intelligence.sh` (after exporting API keys in your shell)
+2. Start the frontend: `cd terminal && bun run dev`
 3. Open [http://localhost:3000/market-analysis](http://localhost:3000/market-analysis)
 
 ### Step 2: Enter a Market URL

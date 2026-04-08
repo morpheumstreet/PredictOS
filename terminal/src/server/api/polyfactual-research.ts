@@ -1,25 +1,12 @@
 import type { PolyfactualResearchRequest, PolyfactualResearchResponse } from "@/types/polyfactual";
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 /**
- * Server-side API route to proxy requests to the Polyfactual Supabase Edge Function.
- * This keeps the Supabase URL and keys secure on the server.
+ * Server-side API route to proxy requests to Polyback Intelligence (polyfactual-research).
+ * Polyfactual API key is configured on the intelligence process (POLYFACTUAL_API_KEY).
  */
 export async function POST(request: Request) {
   try {
-    // Read environment variables server-side
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
-      );
-    }
-
     // Parse request body
     const body: PolyfactualResearchRequest = await request.json();
 
@@ -56,16 +43,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Call the Supabase Edge Function
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH 
-      || `${supabaseUrl}/functions/v1/polyfactual-research`;
-    
-    const response = await fetch(edgeFunctionUrl, {
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH?.trim() ||
+      intelligenceApiUrl("polyfactual-research");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({
         query: trimmedQuery,

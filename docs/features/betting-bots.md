@@ -93,7 +93,7 @@ Ladder Mode was contributed by the community:
 
 ## Required Environment Variables
 
-Add these to your `supabase/.env.local` file:
+Export these in the environment of the **Polyback Intelligence** process:
 
 ### 1. Polymarket Wallet Private Key (Required)
 
@@ -128,7 +128,7 @@ POLYMARKET_PROXY_WALLET_ADDRESS=your_proxy_wallet_address
 
 ## Complete Example
 
-Your `supabase/.env.local` file should include these for betting bots:
+Your intelligence process environment should include these for betting bots:
 
 ```env
 # Polymarket Bot Configuration - Required for Betting Bots
@@ -141,16 +141,13 @@ POLYMARKET_PROXY_WALLET_ADDRESS=0x...your_proxy_wallet_address_here
 In addition to the backend variables above, you need to configure the frontend (`terminal/.env`):
 
 ```env
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
-
-# Edge Function URL (for local development)
-SUPABASE_EDGE_FUNCTION_BETTING_BOT=http://127.0.0.1:54321/functions/v1/polymarket-up-down-15-markets
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
+# Optional: INTELLIGENCE_EDGE_FUNCTION_BETTING_BOT=http://127.0.0.1:8085/api/intelligence/polymarket-up-down-15-markets-limit-order-bot
 ```
 
 ## Full Environment File
 
-If you're using both Market Analysis and Betting Bots, your complete `supabase/.env.local` should look like:
+If you're using both Market Analysis and Betting Bots, your complete **intelligence** environment should look like:
 
 ```env
 # ============================================
@@ -177,17 +174,16 @@ POLYMARKET_PROXY_WALLET_ADDRESS=0x...your_proxy_wallet
 
 After setting up your environment variables:
 
-1. Start the Supabase services:
+1. Start Polyback Intelligence:
    ```bash
-   cd supabase
-   supabase start
-   supabase functions serve --env-file .env.local
+   cd mm/polyback-mm
+   bash scripts/run-intelligence.sh
    ```
 
 2. Start the frontend:
    ```bash
    cd terminal
-   npm run dev
+   bun run dev
    ```
 
 3. Navigate to [http://localhost:3000/betting-bots](http://localhost:3000/betting-bots)

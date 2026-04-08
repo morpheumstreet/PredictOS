@@ -1,3 +1,4 @@
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 /**
  * Order parameters from mapper-agent
@@ -29,23 +30,10 @@ interface PolymarketPutOrderRequest {
 }
 
 /**
- * Server-side API route to proxy requests to the polymarket-put-order Edge Function.
+ * Server-side API route to proxy requests to Polyback Intelligence (polymarket-put-order → executor).
  */
 export async function POST(request: Request) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
-      );
-    }
-
     const body: PolymarketPutOrderRequest = await request.json();
 
     // Check if using mapper mode
@@ -103,15 +91,14 @@ export async function POST(request: Request) {
       }
     }
 
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_POLYMARKET_PUT_ORDER 
-      || `${supabaseUrl}/functions/v1/polymarket-put-order`;
-    
-    const response = await fetch(edgeFunctionUrl, {
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_POLYMARKET_PUT_ORDER?.trim() ||
+      intelligenceApiUrl("polymarket-put-order");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify(body.orderParams ? { orderParams: body.orderParams } : {
         conditionId: body.conditionId,

@@ -13,8 +13,15 @@ Ports and bind addresses come from [`configs/develop.yaml`](../configs/develop.y
 | Analytics        | `:8082`         | Status + events stub                      |
 | Ingestor         | `:8083`         | Status + WS/Kafka snapshot                |
 | Infrastructure   | `:8084`         | Docker compose orchestration              |
+| Intelligence     | `:8085`         | Agents, get-events, x402, Polymarket helpers |
 
 Override with `POLYBACK_CONFIG` or pass the YAML path as the first argument to each binary.
+
+### Intelligence (`http://127.0.0.1:8085`)
+
+All routes are under **`POST /api/intelligence/<name>`** (same path suffixes as the former Supabase functions): `get-events`, `event-analysis-agent`, `analyze-event-markets`, `bookmaker-agent`, `arbitrage-finder`, `mapper-agent`, `polyfactual-research`, `x402-seller`, `polymarket-put-order`, `polymarket-up-down-15-markets-limit-order-bot`, `polymarket-position-tracker`, plus `POST /api/intelligence/ping`.
+
+Secrets and provider keys use **environment variables** on the intelligence process (e.g. `OPENAI_API_KEY`, `XAI_API_KEY`, `DFLOW_API_KEY`, `DOME_API_KEY`, `POLYFACTUAL_API_KEY`, `X402_*`, `BLOCKRUN_WALLET_KEY`, `POLYMARKET_PROXY_WALLET_ADDRESS`). The PredictOS terminal proxies to this service via `INTELLIGENCE_BASE_URL`.
 
 **Note:** This stack does **not** expose a WebSocket API to clients. It connects **outbound** to Polymarket CLOB WebSocket. For streaming, consume **Kafka** (`hft.events.topic`, default `polybot.events`) using the envelope in `internal/hftevents/publisher.go` (`ts`, `source`, `type`, `data`). Event types include `market_ws.tob`, `strategy.gabagool.order`, `executor.order.*`.
 

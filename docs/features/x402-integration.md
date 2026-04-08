@@ -28,7 +28,7 @@ PredictOS also exposes its own intelligence as a **seller agent** — making Pre
 
 | | |
 |---|---|
-| **Public Endpoint** | `https://nqyocjuqubsdrguazcjz.supabase.co/functions/v1/get-polymarket-kalshi-arbitrage` |
+| **Public Endpoint** | Legacy hosted PredictOS URL (Supabase-era); self-host: expose Polyback Intelligence publicly and map to `POST /api/intelligence/arbitrage-finder` (or your chosen seller contract). |
 | **Service** | Live arbitrage opportunities between Polymarket and Kalshi |
 | **Price** | $1 per call |
 | **Network** | Solana |
@@ -149,7 +149,7 @@ When your agent calls an x402 seller:
 
 ### Environment Variables
 
-Add these to your `supabase/.env.local` file:
+Configure these on the **Polyback Intelligence** process environment (same keys as before; see [`mm/polyback-mm/docs/API.md`](../../mm/polyback-mm/docs/API.md)):
 
 ```env
 # =========================================================================================
@@ -207,21 +207,21 @@ x402 in PredictOS supports **mainnet only** for real payments:
 
 3. **Fund with USDC on Solana mainnet**
 
-4. **Export the private key** (base58 format) to your `.env.local`
+4. **Export the private key** (base58 format) into the environment that runs intelligence
 
 #### For Base (EVM) Payments
 
 1. **Use an existing EVM wallet** or create a new one
 2. **Fund with USDC on Base mainnet**
-3. **Add the private key** (with 0x prefix) to your `.env.local`
+3. **Add the private key** (with 0x prefix) to the intelligence process environment
 
 ## Frontend Configuration
 
 Add the edge function URL to your `terminal/.env`:
 
 ```env
-# x402 Seller endpoint
-SUPABASE_EDGE_FUNCTION_X402_SELLER=http://127.0.0.1:54321/functions/v1/x402-seller
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
+# Optional: INTELLIGENCE_EDGE_FUNCTION_X402_SELLER=http://127.0.0.1:8085/api/intelligence/x402-seller
 ```
 
 ## API Reference
@@ -321,10 +321,9 @@ Check if the bazaar is accessible:
 
 | File | Purpose |
 |------|---------|
-| `supabase/functions/_shared/x402/client.ts` | Core x402 client with payment signing |
-| `supabase/functions/_shared/x402/types.ts` | TypeScript types for x402 protocol |
-| `supabase/functions/x402-seller/index.ts` | Edge function handling bazaar & seller calls |
-| `terminal/src/app/api/x402-seller/route.ts` | Next.js API route proxy |
+| `mm/polyback-mm/internal/intelligence/adapters/x402svc/service.go` | x402 bazaar and seller HTTP orchestration (Go) |
+| `mm/polyback-mm/internal/intelligence/adapters/x402svc/evm_payment.go` | EIP-712 / EVM payment signing helpers |
+| `terminal/src/server/api/x402-seller.ts` | Bun API route proxy to intelligence |
 | `terminal/src/components/X402SellerModal.tsx` | Bazaar browser modal UI |
 | `terminal/src/types/x402.ts` | Frontend TypeScript types |
 
@@ -373,7 +372,7 @@ Once selected, the x402 seller appears as a tool badge on your Predict Agent:
 Use the PredictOS Arb Agent to find arbitrage opportunities:
 ```
 Seller: PredictOS Arb Agent
-Endpoint: https://nqyocjuqubsdrguazcjz.supabase.co/functions/v1/get-polymarket-kalshi-arbitrage
+Endpoint: your public intelligence base + `/api/intelligence/arbitrage-finder` (or a dedicated x402 seller you operate)
 Cost: $1.00 per call
 Returns: Live Polymarket vs Kalshi arbitrage opportunities
 ```
@@ -407,8 +406,8 @@ Cost: $0.10 per call
 ### Common Issues
 
 **"X402_DISCOVERY_URL environment variable is not set"**
-- Add `X402_DISCOVERY_URL=https://bazaar.payai.network/resources` to `supabase/.env.local`
-- Restart the Edge Functions server
+- Add `X402_DISCOVERY_URL=https://bazaar.payai.network/resources` to the intelligence process environment
+- Restart the intelligence binary
 
 **"No compatible payment option found"**
 - The seller only accepts networks you haven't configured

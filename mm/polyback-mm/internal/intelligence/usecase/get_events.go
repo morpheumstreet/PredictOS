@@ -15,7 +15,7 @@ import (
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/gamma"
 )
 
-// GetEvents mirrors supabase get-events.
+// GetEvents implements the former get-events edge-function contract.
 type GetEvents struct {
 	root *config.Root
 	hc   *http.Client

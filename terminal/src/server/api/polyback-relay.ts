@@ -6,7 +6,13 @@
 
 import { isAllowedPolybackRelayPath } from "@/lib/polyback-relay-paths";
 
-type ServiceTarget = "executor" | "strategy" | "analytics" | "ingestor" | "infrastructure";
+type ServiceTarget =
+  | "executor"
+  | "strategy"
+  | "analytics"
+  | "ingestor"
+  | "infrastructure"
+  | "intelligence";
 
 type CachedClientConfig = {
   at: number;
@@ -22,6 +28,7 @@ const VALID_TARGETS: ServiceTarget[] = [
   "analytics",
   "ingestor",
   "infrastructure",
+  "intelligence",
 ];
 
 async function fetchGoClientConfig(): Promise<Record<string, unknown>> {

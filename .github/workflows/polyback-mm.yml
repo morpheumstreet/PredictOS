@@ -1,0 +1,24 @@
+name: polyback-mm
+
+on:
+  push:
+    paths:
+      - "mm/polyback-mm/**"
+      - ".github/workflows/polyback-mm.yml"
+  pull_request:
+    paths:
+      - "mm/polyback-mm/**"
+      - ".github/workflows/polyback-mm.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mm/polyback-mm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go test ./...

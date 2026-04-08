@@ -38,7 +38,7 @@ The Polyfactual tab provides deep research capabilities:
 
 ### Kalshi/Polymarket Tab Requirements
 
-Add these to your `supabase/.env.local` file:
+Export these in the environment of the **Polyback Intelligence** process:
 
 #### 1. Dome API Key (Required)
 
@@ -88,7 +88,7 @@ OPENAI_API_KEY=your_openai_api_key
 
 ### Polyfactual Tab Requirements
 
-Add this to your `supabase/.env.local` file:
+Also export this for the intelligence process if you use the Polyfactual tab:
 
 #### Polyfactual API Key (Required for Polyfactual tab)
 
@@ -108,7 +108,7 @@ POLYFACTUAL_API_KEY=your_polyfactual_api_key
 
 ## Complete Example
 
-Your `supabase/.env.local` file should look like this:
+Your intelligence environment should look like this:
 
 ```env
 # =============================================================================
@@ -132,32 +132,28 @@ POLYFACTUAL_API_KEY=your_polyfactual_api_key
 
 ## Frontend Environment Variables
 
-In addition to the backend variables above, you need to configure the frontend (`terminal/.env`):
+In addition to the backend variables above, configure the frontend (`terminal/.env`):
 
 ```env
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
-
-# Edge Function URLs (for local development)
-SUPABASE_EDGE_FUNCTION_ANALYZE_EVENT_MARKETS=http://127.0.0.1:54321/functions/v1/analyze-event-markets
-SUPABASE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH=http://127.0.0.1:54321/functions/v1/polyfactual-research
+INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
+# Optional: INTELLIGENCE_EDGE_FUNCTION_ANALYZE_EVENT_MARKETS=...
+# Optional: INTELLIGENCE_EDGE_FUNCTION_POLYFACTUAL_RESEARCH=...
 ```
 
 ## Verification
 
 After setting up your environment variables:
 
-1. Start the Supabase services:
+1. Start Polyback Intelligence:
    ```bash
-   cd supabase
-   supabase start
-   supabase functions serve --env-file .env.local
+   cd mm/polyback-mm
+   bash scripts/run-intelligence.sh
    ```
 
 2. Start the frontend:
    ```bash
    cd terminal
-   npm run dev
+   bun run dev
    ```
 
 3. Navigate to [http://localhost:3000/market-analysis](http://localhost:3000/market-analysis)

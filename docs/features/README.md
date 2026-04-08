@@ -11,9 +11,9 @@ PredictOS is an open-source framework for running AI-assisted analysis and autom
 ```mermaid
 flowchart LR
   userNode[User]
-  termNode[terminalNextJs]
-  routesNode[apiRoutes]
-  edgeNode[supabaseEdgeFunctions]
+  termNode[terminalBun]
+  routesNode[serverApiRoutes]
+  intelNode[polybackIntelligenceGo]
   dflowNode[DFlow]
   domeNode[Dome]
   aiNode[aiProviders]
@@ -21,16 +21,14 @@ flowchart LR
 
   userNode --> termNode
   termNode --> routesNode
-  termNode --> edgeNode
-  routesNode --> dflowNode
-  routesNode --> domeNode
-  edgeNode --> dflowNode
-  edgeNode --> domeNode
-  edgeNode --> aiNode
-  edgeNode --> optNode
+  routesNode --> intelNode
+  intelNode --> dflowNode
+  intelNode --> domeNode
+  intelNode --> aiNode
+  intelNode --> optNode
 ```
 
-The [README](../../README.md) documents the concrete `terminal/` and `supabase/` tree and API surface; this diagram is only a high-level path from the UI to external services.
+The [README](../../README.md) documents the concrete `terminal/` and `mm/polyback-mm/` layout; this diagram is only a high-level path from the UI to external services.
 
 ## Feature guides
 
@@ -46,7 +44,7 @@ The [README](../../README.md) documents the concrete `terminal/` and `supabase/`
 
 ## Suggested reading order
 
-1. **Start with the [README](../../README.md)** — prerequisites, cloning, env files, and where each app (`terminal/`, `supabase/`) lives.
+1. **Start with the [README](../../README.md)** — prerequisites, cloning, env files, and where each app (`terminal/`, `mm/polyback-mm/`) lives.
 2. **Pick one vertical** aligned with what you want to run first:
    - **Analysis and agents** — [super-intelligence.md](super-intelligence.md); for env details specific to the market analysis UI tabs, also open [market-analysis.md](market-analysis.md).
    - **Cross-venue arb** — [arbitrage-intelligence.md](arbitrage-intelligence.md).

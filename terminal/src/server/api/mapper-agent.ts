@@ -1,3 +1,4 @@
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 /**
  * Analysis result from bookmaker/analysis agent
@@ -41,23 +42,10 @@ interface MapperAgentRequest {
 }
 
 /**
- * Server-side API route to proxy requests to the mapper-agent Edge Function.
+ * Server-side API route to proxy requests to Polyback Intelligence (mapper-agent).
  */
 export async function POST(request: Request) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
-      );
-    }
-
     const body: MapperAgentRequest = await request.json();
 
     // Validate required fields
@@ -101,15 +89,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_MAPPER_AGENT 
-      || `${supabaseUrl}/functions/v1/mapper-agent`;
-    
-    const response = await fetch(edgeFunctionUrl, {
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_MAPPER_AGENT?.trim() ||
+      intelligenceApiUrl("mapper-agent");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({
         platform: body.platform,

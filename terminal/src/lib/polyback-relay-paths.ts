@@ -6,6 +6,7 @@ const ALLOWED_PATH_PREFIXES = [
   "/api/ingestor",
   "/api/analytics",
   "/api/infrastructure",
+  "/api/intelligence",
   "/actuator",
 ] as const;
 

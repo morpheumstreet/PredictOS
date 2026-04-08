@@ -12,6 +12,7 @@ build:
 	go build -o bin/ingestor ./cmd/ingestor
 	go build -o bin/analytics ./cmd/analytics
 	go build -o bin/infrastructure ./cmd/infrastructure
+	go build -o bin/intelligence ./cmd/intelligence
 
 test:
 	go test ./...

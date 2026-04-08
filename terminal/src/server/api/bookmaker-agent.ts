@@ -1,23 +1,11 @@
 import type { AnalysisAggregatorRequest, AnalysisAggregatorResponse } from "@/types/agentic";
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 /**
- * Server-side API route to proxy requests to the bookmaker-agent Edge Function.
+ * Server-side API route to proxy requests to Polyback Intelligence (bookmaker-agent).
  */
 export async function POST(request: Request) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
-      );
-    }
-
     const body: AnalysisAggregatorRequest = await request.json();
 
     // Validate required fields - need at least 2 total data sources (analyses + x402Results)
@@ -65,15 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_BOOKMAKER_AGENT 
-      || `${supabaseUrl}/functions/v1/bookmaker-agent`;
-    
-    const response = await fetch(edgeFunctionUrl, {
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_BOOKMAKER_AGENT?.trim() ||
+      intelligenceApiUrl("bookmaker-agent");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({
         analyses: body.analyses || [],

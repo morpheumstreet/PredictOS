@@ -1,23 +1,11 @@
 import type { GetEventsRequest, GetEventsResponse } from "@/types/agentic";
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 /**
- * Server-side API route to proxy requests to the get-events Edge Function.
+ * Server-side API route to proxy requests to Polyback Intelligence (get-events).
  */
 export async function POST(request: Request) {
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-        },
-        { status: 500 }
-      );
-    }
-
     const body: GetEventsRequest = await request.json();
 
     if (!body.url) {
@@ -30,21 +18,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine data provider based on URL: Kalshi/Jupiter → dflow, Polymarket → dome
-    // Jupiter prediction markets are based on Kalshi events
     const lowerUrl = body.url.toLowerCase();
     const isKalshiBased = lowerUrl.includes("kalshi") || lowerUrl.includes("jup.ag/prediction");
     const dataProvider = isKalshiBased ? "dflow" : "dome";
 
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_GET_EVENTS 
-      || `${supabaseUrl}/functions/v1/get-events`;
-    
-    const response = await fetch(edgeFunctionUrl, {
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_GET_EVENTS?.trim() ||
+      intelligenceApiUrl("get-events");
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
       },
       body: JSON.stringify({
         url: body.url,
@@ -66,4 +51,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import type { PositionTrackerRequest, PositionTrackerResponse } from "@/types/position-tracker";
+import { intelligenceApiUrl } from "@/lib/intelligence-url";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000; // 2 seconds between retries
@@ -43,30 +44,10 @@ async function callEdgeFunction(
 }
 
 /**
- * Server-side API route to proxy requests to the Supabase Edge Function (polymarket-position-tracker).
- * This keeps the Supabase URL and keys secure on the server.
+ * Server-side API route to proxy requests to Polyback Intelligence (position tracker).
  */
 export async function POST(request: Request) {
   try {
-    // Read environment variables server-side
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return Response.json(
-        {
-          success: false,
-          error: "Server configuration error: Missing Supabase credentials",
-          logs: [{
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            message: "Server configuration error: Missing Supabase credentials",
-          }],
-        } as PositionTrackerResponse,
-        { status: 500 }
-      );
-    }
-
     // Parse request body
     let body: PositionTrackerRequest;
     try {
@@ -119,16 +100,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Call the Supabase Edge Function with retry logic
-    const edgeFunctionUrl = process.env.SUPABASE_EDGE_FUNCTION_POSITION_TRACKER
-      || `${supabaseUrl}/functions/v1/polymarket-position-tracker`;
+    const url =
+      process.env.INTELLIGENCE_EDGE_FUNCTION_POSITION_TRACKER?.trim() ||
+      intelligenceApiUrl("polymarket-position-tracker");
 
     const { response, isRetry } = await callEdgeFunction(
-      edgeFunctionUrl,
-      {
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
-      },
+      url,
+      {},
       {
         asset: body.asset.toUpperCase(),
         marketSlug: body.marketSlug,

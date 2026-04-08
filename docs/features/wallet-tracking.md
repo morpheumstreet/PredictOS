@@ -94,17 +94,16 @@ Edit `terminal/.env`:
 # Required for Wallet Tracking
 DOME_API_KEY=your_dome_api_key
 
-# Standard Next.js config (if using other features)
-SUPABASE_URL=<API URL from supabase status>
-SUPABASE_ANON_KEY=<anon key from supabase status>
+# If you use Super Intelligence or arbitrage from the same terminal, point at Polyback Intelligence:
+# INTELLIGENCE_BASE_URL=http://127.0.0.1:8085
 ```
 
 ### 2. Start the Frontend
 
 ```bash
 cd terminal
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ### 3. Use the Feature
