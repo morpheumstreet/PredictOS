@@ -25,6 +25,12 @@ type ProbeRow = {
 const PROBES: ProbeRow[] = [
   { id: "exec-actuator", label: "Executor actuator", target: "executor", path: "/actuator/health" },
   { id: "exec-poly", label: "Polymarket API health", target: "executor", path: "/api/polymarket/health" },
+  {
+    id: "intel-actuator",
+    label: "Intelligence actuator",
+    target: "intelligence",
+    path: "/actuator/health",
+  },
   { id: "strat", label: "Strategy status", target: "strategy", path: "/api/strategy/status" },
   { id: "ingest", label: "Ingestor status", target: "ingestor", path: "/api/ingestor/status" },
   { id: "analytics", label: "Analytics status", target: "analytics", path: "/api/analytics/status" },

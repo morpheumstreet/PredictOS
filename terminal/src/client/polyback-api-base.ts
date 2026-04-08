@@ -14,7 +14,8 @@ export type PolybackServiceTarget =
   | "strategy"
   | "analytics"
   | "ingestor"
-  | "infrastructure";
+  | "infrastructure"
+  | "intelligence";
 
 export type PolybackServiceURLs = Partial<Record<PolybackServiceTarget, string>>;
 

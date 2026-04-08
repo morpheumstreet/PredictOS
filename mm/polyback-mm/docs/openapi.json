@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "polyback-mm API",
-    "description": "HTTP surface for the Go Polymarket trading stack (executor, strategy, analytics, ingestor, infrastructure). Default bind addresses are from `configs/develop.yaml` (`server.*_addr`). WebSocket market data is consumed **outbound** to Polymarket CLOB only; streaming events use Kafka topic `hft.events.topic` when enabled.",
+    "description": "HTTP surface for the Go Polymarket trading stack (executor, strategy, analytics, ingestor, infrastructure, intelligence). Default bind addresses are from `configs/develop.yaml` (`server.*_addr`). Intelligence (:8085) exposes `POST /api/intelligence/*` for agents, market fetch, and proxies. WebSocket market data is consumed **outbound** to Polymarket CLOB only; streaming events use Kafka topic `hft.events.topic` when enabled.",
     "version": "1.0.0"
   },
   "tags": [
@@ -11,14 +11,15 @@
     { "name": "Strategy", "description": "Gabagool strategy service (default :8081)" },
     { "name": "Analytics", "description": "Analytics HTTP facade (default :8082); ClickHouse queries mostly stubs" },
     { "name": "Ingestor", "description": "Ingestor status (default :8083)" },
-    { "name": "Infrastructure", "description": "Docker compose orchestration (default :8084)" }
+    { "name": "Infrastructure", "description": "Docker compose orchestration (default :8084)" },
+    { "name": "Intelligence", "description": "Agents, get-events, x402, polyfactual, mapper, trading helpers (default :8085)" }
   ],
   "paths": {
     "/actuator/health": {
       "get": {
         "tags": ["Common"],
         "summary": "Liveness probe",
-        "description": "Available on all five binaries on their respective ports.",
+        "description": "Available on all service binaries on their respective ports.",
         "responses": {
           "200": {
             "description": "UP",
@@ -34,7 +35,8 @@
           { "url": "http://127.0.0.1:8081", "description": "strategy" },
           { "url": "http://127.0.0.1:8082", "description": "analytics" },
           { "url": "http://127.0.0.1:8083", "description": "ingestor" },
-          { "url": "http://127.0.0.1:8084", "description": "infrastructure" }
+          { "url": "http://127.0.0.1:8084", "description": "infrastructure" },
+          { "url": "http://127.0.0.1:8085", "description": "intelligence" }
         ]
       }
     },
@@ -53,8 +55,79 @@
           { "url": "http://127.0.0.1:8081" },
           { "url": "http://127.0.0.1:8082" },
           { "url": "http://127.0.0.1:8083" },
-          { "url": "http://127.0.0.1:8084" }
+          { "url": "http://127.0.0.1:8084" },
+          { "url": "http://127.0.0.1:8085" }
         ]
+      }
+    },
+    "/api/intelligence/ping": {
+      "post": {
+        "tags": ["Intelligence"],
+        "summary": "Smoke check",
+        "description": "Returns `{ \"ok\": true }`. Same contract as other intelligence routes: JSON body (may be empty object).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "ok": { "type": "boolean" } },
+                  "required": ["ok"]
+                }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8085", "description": "intelligence" }]
+      }
+    },
+    "/api/intelligence/get-events": {
+      "post": {
+        "tags": ["Intelligence"],
+        "summary": "Resolve event and markets from a venue URL",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["url"],
+                "properties": {
+                  "url": { "type": "string", "description": "Kalshi, Polymarket, or Jupiter prediction market URL" },
+                  "dataProvider": { "type": "string", "description": "Optional hint (e.g. dflow, dome)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event payload (legacy edge-function shape)",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid URL or JSON",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        },
+        "servers": [{ "url": "http://127.0.0.1:8085", "description": "intelligence" }]
       }
     },
     "/api/polymarket/health": {
