@@ -6,7 +6,7 @@ import (
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/intelligence/adapters/polyfactual"
-	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/intelligence/adapters/x402svc"
+	x402svc "github.com/profitlock/PredictOS/mm/polyback-mm/internal/intelligence/adapters/x402svc"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/intelligence/llm"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/intelligence/usecase"
 )

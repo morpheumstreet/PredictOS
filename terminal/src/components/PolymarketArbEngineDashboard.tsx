@@ -269,7 +269,7 @@ export function PolymarketArbEngineDashboard() {
       </header>
 
       <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1.2fr)_minmax(160px,0.55fr)] gap-2">
-        <div className="grid min-h-0 min-w-0 grid-cols-[4fr_3fr_3fr] gap-2">
+        <div className="grid min-h-0 min-w-0 grid-cols-3 gap-2">
           <ArbPanel title="MARKET SCANNER — MISPRICING DETECTION">
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full border-collapse text-[10px] sm:text-[11px]">
@@ -312,8 +312,8 @@ export function PolymarketArbEngineDashboard() {
             </ul>
           </ArbPanel>
 
-          <ArbPanel title="MODEL OUTPUT / OPPORTUNITIES" className="gap-3 overflow-y-auto overflow-x-hidden">
-            <div className="space-y-1 text-[10px] sm:text-[11px]">
+          <ArbPanel title="MODEL OUTPUT / OPPORTUNITIES">
+            <div className="space-y-1 text-[10px] sm:text-[11px] overflow-y-auto overflow-x-hidden">
               {MODEL_LINES.map(({ line, tone }) => (
                 <div key={line} className={tx[tone]}>
                   {line}
