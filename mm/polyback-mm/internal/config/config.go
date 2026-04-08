@@ -219,7 +219,9 @@ type ServerCfg struct {
 	StrategyAddr        string `yaml:"strategy_addr"`
 	AnalyticsAddr       string `yaml:"analytics_addr"`
 	IngestorAddr        string `yaml:"ingestor_addr"`
-	InfrastructureAddr    string `yaml:"infrastructure_addr"`
+	InfrastructureAddr string `yaml:"infrastructure_addr"`
+	// IntelligenceAddr is the listen address for the Polyback Intelligence HTTP service (agents, proxies).
+	IntelligenceAddr string `yaml:"intelligence_addr"`
 }
 
 type InfraRoot struct {

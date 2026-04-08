@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import WalletTrackingTerminal from "@/components/WalletTrackingTerminal";
 import { BettingBotsPage } from "@/pages/BettingBotsPage";
 import { AgentsPage } from "@/pages/AgentsPage";
+import { DashboardPage } from "@/pages/DashboardPage";
 
 function AnalysisPage() {
   return (
@@ -76,7 +77,8 @@ function PolybackMMPage() {
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/market-analysis" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/market-analysis" element={<AnalysisPage />} />
       <Route path="/arbitrage" element={<ArbitragePage />} />
       <Route path="/betting-bots" element={<BettingBotsPage />} />
@@ -84,7 +86,7 @@ export function App() {
       <Route path="/event-scanner" element={<EventScannerPage />} />
       <Route path="/agents" element={<AgentsPage />} />
       <Route path="/polyback-mm" element={<PolybackMMPage />} />
-      <Route path="*" element={<Navigate to="/market-analysis" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

@@ -134,6 +134,7 @@ server:
   analytics_addr: :8082
   ingestor_addr: :8083
   infrastructure_addr: :8084
+  intelligence_addr: :8085
 
 infrastructure:
   startup_timeout_seconds: 120

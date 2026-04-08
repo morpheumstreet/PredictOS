@@ -12,6 +12,7 @@ import {
   ScanSearch,
   Sparkles,
   Server,
+  LayoutDashboard,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -19,6 +20,7 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { id: "analysis", label: "Predict Super Intelligence", icon: BarChart3, href: "/market-analysis" },
   { id: "arbitrage", label: "Arbitrage Intelligence", icon: ArrowLeftRight, href: "/arbitrage" },
   { id: "betting-bots", label: "Betting Bots", icon: Bot, href: "/betting-bots" },
@@ -40,7 +42,7 @@ export function Sidebar({ activeTab }: SidebarProps) {
     >
       {/* Logo */}
       <div className="p-4 border-b border-border/50 flex items-center justify-between">
-        <Link to="/market-analysis" className="flex items-center gap-3 group">
+        <Link to="/dashboard" className="flex items-center gap-3 group">
           <div className="relative">
             <div className="w-10 h-10 rounded-full border-2 border-primary glow-primary flex items-center justify-center bg-primary/10 overflow-hidden shrink-0">
               <img
@@ -228,7 +230,7 @@ export function Sidebar({ activeTab }: SidebarProps) {
           
           {/* Version Tag */}
           <span className="text-[10px] px-2 py-0.5 rounded bg-success/20 text-success border border-success font-mono font-bold">
-            v2.4.0
+            v2.4.1
           </span>
         </div>
       </div>

@@ -25,6 +25,7 @@ type ClientServiceURLs struct {
 	Analytics        string `json:"analytics,omitempty"`
 	Ingestor         string `json:"ingestor,omitempty"`
 	Infrastructure   string `json:"infrastructure,omitempty"`
+	Intelligence     string `json:"intelligence,omitempty"`
 }
 
 // ClientConfigServerInfo exposes listen addresses and public URL (non-secret).
@@ -35,6 +36,7 @@ type ClientConfigServerInfo struct {
 	AnalyticsAddr      string `json:"analyticsAddr"`
 	IngestorAddr       string `json:"ingestorAddr"`
 	InfrastructureAddr string `json:"infrastructureAddr"`
+	IntelligenceAddr   string `json:"intelligenceAddr"`
 }
 
 // ClientConfigModule documents HTTP route groups for the terminal / ops UI.
@@ -93,6 +95,7 @@ func BuildClientConfigResponse(root *config.Root) ClientConfigResponse {
 			AnalyticsAddr:      root.Server.AnalyticsAddr,
 			IngestorAddr:       root.Server.IngestorAddr,
 			InfrastructureAddr: root.Server.InfrastructureAddr,
+			IntelligenceAddr:   root.Server.IntelligenceAddr,
 		},
 		ServiceURLs: ClientServiceURLs{
 			Executor:       ListenAddrToBaseURL(root.Server.ExecutorAddr),
@@ -100,6 +103,7 @@ func BuildClientConfigResponse(root *config.Root) ClientConfigResponse {
 			Analytics:      ListenAddrToBaseURL(root.Server.AnalyticsAddr),
 			Ingestor:       ListenAddrToBaseURL(root.Server.IngestorAddr),
 			Infrastructure: ListenAddrToBaseURL(root.Server.InfrastructureAddr),
+			Intelligence:   ListenAddrToBaseURL(root.Server.IntelligenceAddr),
 		},
 		Modules: []ClientConfigModule{
 			{Name: "polymarket_executor", PathPrefix: "/api/polymarket"},
@@ -107,6 +111,7 @@ func BuildClientConfigResponse(root *config.Root) ClientConfigResponse {
 			{Name: "ingestor", PathPrefix: "/api/ingestor"},
 			{Name: "analytics", PathPrefix: "/api/analytics"},
 			{Name: "infrastructure", PathPrefix: "/api/infrastructure"},
+			{Name: "intelligence", PathPrefix: "/api/intelligence"},
 		},
 	}
 }
