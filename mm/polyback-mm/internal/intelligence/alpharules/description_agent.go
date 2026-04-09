@@ -646,12 +646,23 @@ func RunDescriptionAgent(ctx context.Context, f *llm.Facade, db *sql.DB, cfg *De
 				if model == "" {
 					model = defaultModel
 				}
-				// Temperature / response_format per-strategy: llm.Facade uses provider defaults + json_object where supported.
+				effTemp := cfg.Temperature
+				if j.Temperature != nil {
+					effTemp = *j.Temperature
+				}
+				jsonObj := cfg.JSONResponseFormat
+				if j.JSONResponseFmt != nil {
+					jsonObj = *j.JSONResponseFmt
+				}
+				llmOpts := &llm.CompletionOpts{
+					Temperature: &effTemp,
+					JSONObject:  &jsonObj,
+				}
 
 				var lastErr error
 				delay := 2 * time.Second
 				for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
-					txt, _, _, _, callErr := f.CompleteJSON(ctx, model, j.System, j.User, nil)
+					txt, _, _, _, callErr := f.CompleteJSONWithOptions(ctx, model, j.System, j.User, nil, llmOpts)
 					if callErr == nil {
 						canon, ans, perr := parseYesNoJSONResponse(txt)
 						if perr != nil {

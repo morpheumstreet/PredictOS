@@ -47,7 +47,7 @@ func isBlockRunModel(model string) bool {
 	return strings.HasPrefix(m, "blockrun/") || blockrunAliases[m] != ""
 }
 
-func callBlockRun(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt string, jsonMode, enableSearch bool) (text string, outModel string, totalTokens *int, paymentCost *string, err error) {
+func callBlockRun(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt string, jsonMode, enableSearch bool, temperature *float64) (text string, outModel string, totalTokens *int, paymentCost *string, err error) {
 	walletKey := strings.TrimSpace(os.Getenv("BLOCKRUN_WALLET_KEY"))
 	if walletKey == "" {
 		return "", "", nil, nil, fmt.Errorf("BLOCKRUN_WALLET_KEY is not set")
@@ -65,6 +65,9 @@ func callBlockRun(ctx context.Context, hc *http.Client, model, systemPrompt, use
 	}
 	if jsonMode {
 		payload["response_format"] = map[string]string{"type": "json_object"}
+	}
+	if temperature != nil {
+		payload["temperature"] = *temperature
 	}
 	if enableSearch && strings.HasPrefix(actual, "xai/") {
 		payload["search"] = true

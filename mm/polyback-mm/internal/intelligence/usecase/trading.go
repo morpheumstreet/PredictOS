@@ -343,6 +343,12 @@ func numFloat(v any) float64 {
 		return t
 	case int:
 		return float64(t)
+	case json.Number:
+		f, err := t.Float64()
+		if err != nil {
+			return 0
+		}
+		return f
 	default:
 		return 0
 	}
@@ -355,37 +361,12 @@ var assetSlugPrefix = map[string]string{
 	"XRP": "xrp-updown-15m-",
 }
 
-// LimitOrderBot places up to two BUY limits on up/down tokens via executor (paper mode).
-func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[string]any) {
-	_ = ctx
-	var req map[string]any
-	_ = json.Unmarshal(body, &req)
-	if lad, ok := req["ladder"].(map[string]any); ok {
-		if en, ok := lad["enabled"].(bool); ok && en {
-			return 200, map[string]any{
-				"success": false,
-				"error":   "Ladder mode is not supported by polyback-mm; set INTELLIGENCE_EDGE_FUNCTION_LIMIT_ORDER_BOT or use vanilla mode.",
-				"logs":    []any{},
-			}
-		}
-	}
-	asset, _ := req["asset"].(string)
-	asset = strings.ToUpper(strings.TrimSpace(asset))
-	if _, ok := assetSlugPrefix[asset]; !ok {
-		return 400, map[string]any{"success": false, "error": "Invalid asset. Must be one of: BTC, SOL, ETH, XRP", "logs": []any{}}
-	}
-	pricePct := 48.0
-	if p, ok := req["price"].(float64); ok && p > 0 {
-		pricePct = p
-	}
-	price := pricePct / 100
-	sizeUsd := 25.0
-	if s, ok := req["sizeUsd"].(float64); ok && s > 0 {
-		sizeUsd = s
-	}
+// limitOrderBotLoad15mMarket resolves the next 15m Gamma market for asset (slug ceil(ts/900)*900).
+// On failure failBody is non-nil and should be returned as the HTTP handler body; failCode is the status.
+func (t *Trading) limitOrderBotLoad15mMarket(asset string) (next int, slug string, upTok, downTok, title string, failCode int, failBody map[string]any) {
 	ts := time.Now().Unix()
-	next := int(math.Ceil(float64(ts)/900) * 900)
-	slug := assetSlugPrefix[asset] + fmt.Sprintf("%d", next)
+	next = int(math.Ceil(float64(ts)/900) * 900)
+	slug = assetSlugPrefix[asset] + fmt.Sprintf("%d", next)
 	gammaURL := strings.TrimSpace(t.root.Hft.Polymarket.GammaURL)
 	if gammaURL == "" {
 		gammaURL = "https://gamma-api.polymarket.com"
@@ -393,19 +374,168 @@ func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[stri
 	gc := gamma.New(gammaURL)
 	raw, err := gc.MarketBySlug(slug)
 	if err != nil {
-		return 200, map[string]any{"success": false, "error": "Market not found - may not be created yet", "logs": []any{}}
+		return 0, "", "", "", "", 200, map[string]any{"success": false, "error": "Market not found - may not be created yet", "logs": []any{}}
 	}
 	var m map[string]any
-	_ = json.Unmarshal(raw, &m)
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return 0, "", "", "", "", 500, map[string]any{"success": false, "error": "market json", "logs": []any{}}
+	}
 	clob, _ := m["clobTokenIds"].(string)
 	var ids []string
 	_ = json.Unmarshal([]byte(clob), &ids)
 	if len(ids) < 2 {
-		return 500, map[string]any{"success": false, "error": "token ids", "logs": []any{}}
+		return 0, "", "", "", "", 500, map[string]any{"success": false, "error": "token ids", "logs": []any{}}
 	}
-	upTok, downTok := upDownClobTokenIDs(m, ids)
+	upTok, downTok = upDownClobTokenIDs(m, ids)
 	if upTok == "" || downTok == "" {
-		return 500, map[string]any{"success": false, "error": "could not resolve up/down token ids", "logs": []any{}}
+		return 0, "", "", "", "", 500, map[string]any{"success": false, "error": "could not resolve up/down token ids", "logs": []any{}}
+	}
+	for _, k := range []string{"question", "title"} {
+		if s, ok := m[k].(string); ok && strings.TrimSpace(s) != "" {
+			title = strings.TrimSpace(s)
+			break
+		}
+	}
+	return next, slug, upTok, downTok, title, 0, nil
+}
+
+func (t *Trading) limitOrderBotPostLimitBuy(tokenID string, price, shares float64, tickDec decimal.Decimal, negRisk bool) map[string]any {
+	f := negRisk
+	lr := map[string]any{
+		"tokenId":  tokenID,
+		"side":     "BUY",
+		"price":    decimal.NewFromFloat(price).StringFixed(4),
+		"size":     decimal.NewFromFloat(shares).StringFixed(0),
+		"tickSize": tickDec.String(),
+		"negRisk":  &f,
+	}
+	code, b, perr := t.postExecutor("/api/polymarket/orders/limit", lr)
+	if perr != nil {
+		return limitOrderBotOrderResponse(false, "", perr.Error())
+	}
+	ok, oid, emsg := executorLimitOrderOutcome(code, b)
+	return limitOrderBotOrderResponse(ok, oid, emsg)
+}
+
+func (t *Trading) limitOrderBotLadder(asset string, sizeUsd float64, lad map[string]any) (int, map[string]any) {
+	maxP := defaultLadderMaxPrice
+	minP := defaultLadderMinPrice
+	taper := defaultLadderTaper
+	if lad != nil {
+		if v := numFloat(lad["maxPrice"]); v > 0 {
+			maxP = int(v)
+		}
+		if v := numFloat(lad["minPrice"]); v > 0 {
+			minP = int(v)
+		}
+		if v := numFloat(lad["taperFactor"]); v > 0 {
+			taper = v
+		}
+	}
+	rungs, err := CalculateLadderRungs(sizeUsd, maxP, minP, taper)
+	if err != nil {
+		return 400, map[string]any{"success": false, "error": err.Error(), "logs": []any{}}
+	}
+	for _, r := range rungs {
+		price := float64(r.PricePercent) / 100
+		sharesEach := math.Floor((r.SizeUsd / 2) / price)
+		if sharesEach < 5 {
+			return 400, map[string]any{
+				"success": false,
+				"error": fmt.Sprintf(
+					"rung at %d%%: allocation $%.2f yields only %.0f shares per side (min 5); increase bankroll or narrow ladder",
+					r.PricePercent, r.SizeUsd, sharesEach,
+				),
+				"logs": []any{},
+			}
+		}
+	}
+	next, slug, upTok, downTok, title, failCode, failBody := t.limitOrderBotLoad15mMarket(asset)
+	if failBody != nil {
+		return failCode, failBody
+	}
+	tickDec := decimal.RequireFromString("0.01")
+	var ladderOrders []any
+	totalOrders := 0
+	successCount := 0
+	for _, r := range rungs {
+		price := float64(r.PricePercent) / 100
+		sharesEach := math.Floor((r.SizeUsd / 2) / price)
+		upRes := t.limitOrderBotPostLimitBuy(upTok, price, sharesEach, tickDec, false)
+		downRes := t.limitOrderBotPostLimitBuy(downTok, price, sharesEach, tickDec, false)
+		totalOrders += 2
+		if ok, _ := upRes["success"].(bool); ok {
+			successCount++
+		}
+		if ok, _ := downRes["success"].(bool); ok {
+			successCount++
+		}
+		ladderOrders = append(ladderOrders, map[string]any{
+			"pricePercent": r.PricePercent,
+			"sizeUsd":      r.SizeUsd,
+			"up":           upRes,
+			"down":         downRes,
+		})
+	}
+	startRFC3339 := time.Unix(int64(next), 0).UTC().Format(time.RFC3339)
+	market := map[string]any{
+		"marketSlug":             slug,
+		"marketStartTime":        startRFC3339,
+		"targetTimestamp":        next,
+		"ladderOrdersPlaced":     ladderOrders,
+		"ladderTotalOrders":      totalOrders,
+		"ladderSuccessfulOrders": successCount,
+	}
+	if title != "" {
+		market["marketTitle"] = title
+	}
+	if successCount == 0 && totalOrders > 0 {
+		market["error"] = "all ladder order attempts failed"
+	}
+	return 200, map[string]any{
+		"success": true,
+		"data": map[string]any{
+			"asset":        asset,
+			"pricePercent": float64(maxP),
+			"sizeUsd":      sizeUsd,
+			"ladderMode":   true,
+			"market":       market,
+		},
+		"logs": []any{},
+	}
+}
+
+// LimitOrderBot places up to two BUY limits on up/down tokens via executor (paper mode).
+func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[string]any) {
+	_ = ctx
+	var req map[string]any
+	_ = json.Unmarshal(body, &req)
+	asset, _ := req["asset"].(string)
+	asset = strings.ToUpper(strings.TrimSpace(asset))
+	if _, ok := assetSlugPrefix[asset]; !ok {
+		return 400, map[string]any{"success": false, "error": "Invalid asset. Must be one of: BTC, SOL, ETH, XRP", "logs": []any{}}
+	}
+	sizeUsd := 25.0
+	if v := numFloat(req["sizeUsd"]); v > 0 {
+		sizeUsd = v
+	}
+	var lad map[string]any
+	if l, ok := req["ladder"].(map[string]any); ok {
+		lad = l
+	}
+	if lad != nil {
+		if en, ok := lad["enabled"].(bool); ok && en {
+			return t.limitOrderBotLadder(asset, sizeUsd, lad)
+		}
+	}
+	pricePct := 48.0
+	if v := numFloat(req["price"]); v > 0 {
+		pricePct = v
+	}
+	price := pricePct / 100
+	next, slug, upTok, downTok, title, failCode, failBody := t.limitOrderBotLoad15mMarket(asset)
+	if failBody != nil {
+		return failCode, failBody
 	}
 	sharesEach := math.Floor(sizeUsd / 2 / price)
 	if sharesEach < 5 {
@@ -416,23 +546,8 @@ func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[stri
 		}
 	}
 	tickDec := decimal.RequireFromString("0.01")
-	f := false
-	place := func(tokenID string) map[string]any {
-		lr := map[string]any{
-			"tokenId": tokenID, "side": "BUY",
-			"price":    decimal.NewFromFloat(price).StringFixed(4),
-			"size":     decimal.NewFromFloat(sharesEach).StringFixed(0),
-			"tickSize": tickDec.String(), "negRisk": &f,
-		}
-		code, b, perr := t.postExecutor("/api/polymarket/orders/limit", lr)
-		if perr != nil {
-			return limitOrderBotOrderResponse(false, "", perr.Error())
-		}
-		ok, oid, emsg := executorLimitOrderOutcome(code, b)
-		return limitOrderBotOrderResponse(ok, oid, emsg)
-	}
-	upRes := place(upTok)
-	downRes := place(downTok)
+	upRes := t.limitOrderBotPostLimitBuy(upTok, price, sharesEach, tickDec, false)
+	downRes := t.limitOrderBotPostLimitBuy(downTok, price, sharesEach, tickDec, false)
 	upOk, _ := upRes["success"].(bool)
 	downOk, _ := downRes["success"].(bool)
 	marketErr := ""
@@ -440,13 +555,6 @@ func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[stri
 		uem, _ := upRes["errorMsg"].(string)
 		dem, _ := downRes["errorMsg"].(string)
 		marketErr = fmt.Sprintf("up: %s; down: %s", uem, dem)
-	}
-	title := ""
-	for _, k := range []string{"question", "title"} {
-		if s, ok := m[k].(string); ok && strings.TrimSpace(s) != "" {
-			title = strings.TrimSpace(s)
-			break
-		}
 	}
 	startRFC3339 := time.Unix(int64(next), 0).UTC().Format(time.RFC3339)
 	market := map[string]any{

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func callGrokResponses(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt, responseFormat string, tools []string) (map[string]any, error) {
+func callGrokResponses(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt string, jsonObject bool, tools []string, temperature *float64) (map[string]any, error) {
 	key := strings.TrimSpace(os.Getenv("XAI_API_KEY"))
 	if key == "" {
 		return nil, fmt.Errorf("XAI_API_KEY is not set")
@@ -25,7 +25,12 @@ func callGrokResponses(ctx context.Context, hc *http.Client, model, systemPrompt
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"response_format": map[string]any{"type": responseFormat},
+	}
+	if jsonObject {
+		payload["response_format"] = map[string]any{"type": "json_object"}
+	}
+	if temperature != nil {
+		payload["temperature"] = *temperature
 	}
 	if len(tools) > 0 {
 		tl := make([]map[string]string, 0, len(tools))

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func callOpenAIResponses(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt, responseFormat string) (map[string]any, error) {
+func callOpenAIResponses(ctx context.Context, hc *http.Client, model, systemPrompt, userPrompt string, jsonObject bool, temperature *float64) (map[string]any, error) {
 	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if key == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY is not set")
@@ -26,9 +26,14 @@ func callOpenAIResponses(ctx context.Context, hc *http.Client, model, systemProm
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"text": map[string]any{
-			"format": map[string]any{"type": responseFormat},
-		},
+	}
+	if jsonObject {
+		payload["text"] = map[string]any{
+			"format": map[string]any{"type": "json_object"},
+		}
+	}
+	if temperature != nil {
+		payload["temperature"] = *temperature
 	}
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
