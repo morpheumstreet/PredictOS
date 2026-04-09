@@ -130,10 +130,9 @@ When `success: true` and ladder was used:
 | Types | `terminal/src/types/betting-bot.ts` |
 | Proxy + env | `terminal/src/server/api/limit-order-bot.ts`, `terminal/src/lib/intelligence-url.ts` |
 | HTTP route | `mm/polyback-mm/internal/intelligence/httpapi/router.go` → `polymarket-up-down-15-markets-limit-order-bot` |
-| Orchestration | `mm/polyback-mm/internal/intelligence/usecase/trading.go` — `LimitOrderBot` (vanilla + **ladder branch**) |
+| Rung math (TS parity) | `mm/polyback-mm/internal/intelligence/usecase/ladder_rungs.go` — `CalculateLadderRungs`; golden tests in `ladder_rungs_test.go` |
+| Orchestration | `mm/polyback-mm/internal/intelligence/usecase/trading.go` — `LimitOrderBot`, `limitOrderBotLadder`, `limitOrderBotLoad15mMarket`, `limitOrderBotPostLimitBuy` |
 | Limit execution | `mm/polyback-mm/internal/executor/httpapi/handler.go` — paper vs live |
-
-**Current gap:** ladder `enabled` must be implemented inside `LimitOrderBot` (or rejected with a clear error until done). Vanilla path is already aligned with the terminal response shape.
 
 ---
 
@@ -151,4 +150,4 @@ When `success: true` and ladder was used:
 - Market not yet on Gamma → `success: false`, same as vanilla.
 - Executor returns 501 (live not wired) → each leg fails with executor message; `ladderSuccessfulOrders` reflects paper/live reality.
 
-This architecture is the contract **BettingBotTerminalLadder** expects; polyback-mm ladder support should implement **§5–§6** exactly and return **§4.2**.
+This architecture is the contract **BettingBotTerminalLadder** expects; polyback-mm implements **§5–§6** in `ladder_rungs.go` + `LimitOrderBot` and returns **§4.2**.
