@@ -8,11 +8,16 @@ import type { WalletTrackerBackendStatus } from "@/types/wallet-tracking";
 type WalletTrackingStatusResponse = {
   ok: boolean;
   dome_configured: boolean;
-  active_stream_connections: number;
+  active_stream_connections?: number;
+  dome_key_count?: number;
+  max_concurrent_streams?: number;
+  max_subscriptions_per_key?: number;
+  slots_in_use?: number;
 };
 
 const WalletTrackingTerminal = () => {
   const [backendStatus, setBackendStatus] = useState<WalletTrackerBackendStatus>("checking");
+  const [capacityHint, setCapacityHint] = useState<string | null>(null);
   const backendReady = backendStatus === "ready";
 
   const {
@@ -40,12 +45,18 @@ const WalletTrackingTerminal = () => {
         if (cancelled) return;
         if (data.dome_configured) {
           setBackendStatus("ready");
+          const nKeys = data.dome_key_count ?? 1;
+          const maxStreams = data.max_concurrent_streams ?? nKeys * (data.max_subscriptions_per_key ?? 2);
+          const inUse = data.slots_in_use ?? data.active_stream_connections ?? 0;
+          setCapacityHint(`${nKeys} Dome key(s) · ${inUse}/${maxStreams} stream slots in use (auto-balanced across keys)`);
         } else {
           setBackendStatus("misconfigured");
+          setCapacityHint(null);
         }
       } catch {
         if (!cancelled) {
           setBackendStatus("error");
+          setCapacityHint(null);
         }
       }
     })();
@@ -109,12 +120,26 @@ const WalletTrackingTerminal = () => {
                   <span className="text-xs text-muted-foreground font-mono">Backend…</span>
                 )}
                 {backendStatus === "ready" && !anyRunning && (
-                  <span className="text-xs text-green-500/90 font-mono">Backend ready</span>
+                  <div className="flex flex-col items-end gap-0.5 min-w-0">
+                    <span className="text-xs text-green-500/90 font-mono">Backend ready</span>
+                    {capacityHint && (
+                      <span className="text-[10px] text-muted-foreground font-mono text-right max-w-[min(100%,18rem)] leading-tight">
+                        {capacityHint}
+                      </span>
+                    )}
+                  </div>
                 )}
                 {backendStatus === "ready" && anyRunning && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs text-green-500 font-mono">TRACKING</span>
+                  <div className="flex flex-col items-end gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-xs text-green-500 font-mono">TRACKING</span>
+                    </div>
+                    {capacityHint && (
+                      <span className="text-[10px] text-muted-foreground font-mono text-right max-w-[min(100%,18rem)] leading-tight">
+                        {capacityHint}
+                      </span>
+                    )}
                   </div>
                 )}
                 {backendStatus === "misconfigured" && (
