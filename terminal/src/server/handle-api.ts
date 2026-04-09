@@ -10,6 +10,7 @@ import * as eventAnalysisAgent from "@/server/api/event-analysis-agent";
 import * as getEvents from "@/server/api/get-events";
 import * as irysUpload from "@/server/api/irys-upload";
 import * as limitOrderBot from "@/server/api/limit-order-bot";
+import * as limitOrderBotStatus from "@/server/api/limit-order-bot-status";
 import * as mapperAgent from "@/server/api/mapper-agent";
 import * as polymarketPutOrder from "@/server/api/polymarket-put-order";
 import * as polybackConfigClient from "@/server/api/polyback-config-client";
@@ -18,6 +19,7 @@ import * as polybackRelay from "@/server/api/polyback-relay";
 import * as polyfactualResearch from "@/server/api/polyfactual-research";
 import * as positionTracker from "@/server/api/position-tracker";
 import * as walletTracking from "@/server/api/wallet-tracking";
+import * as walletTrackingStatus from "@/server/api/wallet-tracking-status";
 import * as x402Seller from "@/server/api/x402-seller";
 
 export type ApiRouteHandlers = Partial<Record<string, (req: Request) => Promise<Response>>>;
@@ -44,6 +46,7 @@ const routes: Record<string, ApiRouteHandlers> = {
   "/api/get-events": { POST: getEvents.POST },
   "/api/irys-upload": { GET: irysUpload.GET, POST: irysUpload.POST },
   "/api/limit-order-bot": { POST: limitOrderBot.POST },
+  "/api/limit-order-bot/status": { GET: limitOrderBotStatus.GET },
   "/api/mapper-agent": { POST: mapperAgent.POST },
   "/api/polymarket-put-order": { POST: polymarketPutOrder.POST },
   "/api/polyfactual-research": { POST: polyfactualResearch.POST },
@@ -52,6 +55,7 @@ const routes: Record<string, ApiRouteHandlers> = {
   "/api/polyback/relay": { GET: polybackRelay.GET },
   "/api/position-tracker": { POST: positionTracker.POST },
   "/api/wallet-tracking": { GET: walletTracking.GET },
+  "/api/wallet-tracking/status": { GET: walletTrackingStatus.GET },
   "/api/x402-seller": { POST: x402Seller.POST, OPTIONS: x402Seller.OPTIONS },
 };
 

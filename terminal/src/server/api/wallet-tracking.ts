@@ -6,6 +6,14 @@ const activeConnections = new Map<string, {
   subscriptionId: string;
 }>();
 
+/** Snapshot for /api/wallet-tracking/status (no secrets). */
+export function getWalletTrackingBackendState() {
+  return {
+    dome_configured: Boolean(process.env.DOME_API_KEY?.trim()),
+    active_stream_connections: activeConnections.size,
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const walletAddress = searchParams.get("wallet");

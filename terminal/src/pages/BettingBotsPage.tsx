@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Bot } from "lucide-react";
+import { ChevronDown, Bot, Loader2, AlertCircle } from "lucide-react";
 import BettingBotTerminal from "@/components/BettingBotTerminal";
 import BettingBotTerminalLadder from "@/components/BettingBotTerminalLadder";
 import Sidebar from "@/components/Sidebar";
@@ -29,10 +29,19 @@ const BOT_VERSIONS: {
   },
 ];
 
+type LimitOrderBotStatusPayload = {
+  success: boolean;
+  parallelLimitOrderPlacements?: number;
+  description?: string;
+  error?: string;
+};
+
 export function BettingBotsPage() {
   const [selectedVersion, setSelectedVersion] = useState<BotVersion>("vanilla");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [backendStatus, setBackendStatus] = useState<LimitOrderBotStatusPayload | null>(null);
+  const [backendStatusLoading, setBackendStatusLoading] = useState(true);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,6 +51,29 @@ export function BettingBotsPage() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBackendStatusLoading(true);
+    fetch("/api/limit-order-bot/status")
+      .then(async (res) => {
+        const data = (await res.json()) as LimitOrderBotStatusPayload;
+        if (!cancelled) {
+          setBackendStatus(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBackendStatus({ success: false, error: "Could not reach status endpoint" });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBackendStatusLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectedBot = BOT_VERSIONS.find((v) => v.value === selectedVersion);
@@ -111,6 +143,42 @@ export function BettingBotsPage() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="px-6 pt-4 pr-52 md:pr-56">
+          <div className="rounded-lg border border-border bg-card/80 backdrop-blur-sm px-4 py-3 text-sm">
+            {backendStatusLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                <span>Loading backend execution state…</span>
+              </div>
+            ) : backendStatus?.success &&
+              typeof backendStatus.parallelLimitOrderPlacements === "number" ? (
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  Backend:{" "}
+                  <span className="font-mono text-primary tabular-nums">
+                    {backendStatus.parallelLimitOrderPlacements}
+                  </span>{" "}
+                  limit order{backendStatus.parallelLimitOrderPlacements === 1 ? "" : "s"} in parallel
+                </p>
+                {backendStatus.description ? (
+                  <p className="text-xs text-muted-foreground leading-relaxed">{backendStatus.description}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex gap-2 text-amber-600 dark:text-amber-500">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Could not load parallel execution state</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {backendStatus?.error ??
+                      "Ensure Polyback Intelligence is running and the terminal can reach it (see INTELLIGENCE_BASE_URL)."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {selectedVersion === "vanilla" ? <BettingBotTerminal /> : <BettingBotTerminalLadder />}

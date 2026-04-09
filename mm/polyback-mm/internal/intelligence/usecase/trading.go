@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
@@ -399,6 +400,29 @@ func (t *Trading) limitOrderBotLoad15mMarket(asset string) (next int, slug strin
 	return next, slug, upTok, downTok, title, 0, nil
 }
 
+// limitOrderBotPostLimitBuyPair places Up and Down limits concurrently (one HTTP call per leg).
+func (t *Trading) limitOrderBotPostLimitBuyPair(upTok, downTok string, price, sharesEach float64, tickDec decimal.Decimal, negRisk bool) (upRes, downRes map[string]any) {
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		r := t.limitOrderBotPostLimitBuy(upTok, price, sharesEach, tickDec, negRisk)
+		mu.Lock()
+		upRes = r
+		mu.Unlock()
+	}()
+	go func() {
+		defer wg.Done()
+		r := t.limitOrderBotPostLimitBuy(downTok, price, sharesEach, tickDec, negRisk)
+		mu.Lock()
+		downRes = r
+		mu.Unlock()
+	}()
+	wg.Wait()
+	return upRes, downRes
+}
+
 func (t *Trading) limitOrderBotPostLimitBuy(tokenID string, price, shares float64, tickDec decimal.Decimal, negRisk bool) map[string]any {
 	f := negRisk
 	lr := map[string]any{
@@ -461,8 +485,7 @@ func (t *Trading) limitOrderBotLadder(asset string, sizeUsd float64, lad map[str
 	for _, r := range rungs {
 		price := float64(r.PricePercent) / 100
 		sharesEach := math.Floor((r.SizeUsd / 2) / price)
-		upRes := t.limitOrderBotPostLimitBuy(upTok, price, sharesEach, tickDec, false)
-		downRes := t.limitOrderBotPostLimitBuy(downTok, price, sharesEach, tickDec, false)
+		upRes, downRes := t.limitOrderBotPostLimitBuyPair(upTok, downTok, price, sharesEach, tickDec, false)
 		totalOrders += 2
 		if ok, _ := upRes["success"].(bool); ok {
 			successCount++
@@ -502,6 +525,17 @@ func (t *Trading) limitOrderBotLadder(asset string, sizeUsd float64, lad map[str
 			"market":       market,
 		},
 		"logs": []any{},
+	}
+}
+
+const limitOrderBotParallelLegs = 2
+
+// LimitOrderBotStatus reports how many limit-order placements run in parallel per straddle (Up + Down).
+func (t *Trading) LimitOrderBotStatus() (int, map[string]any) {
+	return http.StatusOK, map[string]any{
+		"success":                      true,
+		"parallelLimitOrderPlacements": limitOrderBotParallelLegs,
+		"description":                  "Each straddle tick submits Up and Down BUY limits concurrently (two in-flight HTTP calls to the executor).",
 	}
 }
 
@@ -546,8 +580,7 @@ func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[stri
 		}
 	}
 	tickDec := decimal.RequireFromString("0.01")
-	upRes := t.limitOrderBotPostLimitBuy(upTok, price, sharesEach, tickDec, false)
-	downRes := t.limitOrderBotPostLimitBuy(downTok, price, sharesEach, tickDec, false)
+	upRes, downRes := t.limitOrderBotPostLimitBuyPair(upTok, downTok, price, sharesEach, tickDec, false)
 	upOk, _ := upRes["success"].(bool)
 	downOk, _ := downRes["success"].(bool)
 	marketErr := ""

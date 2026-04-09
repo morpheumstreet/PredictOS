@@ -1,15 +1,33 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Square, Eye, AlertTriangle } from "lucide-react";
 import type { WalletTrackingLogEntry, SSEMessage, OrderEvent } from "@/types/wallet-tracking";
 
+const WALLET_STORAGE_KEY = "predictos-wallet-tracking-address";
+
+type BackendStatus = "checking" | "ready" | "misconfigured" | "error";
+
+type WalletTrackingStatusResponse = {
+  ok: boolean;
+  dome_configured: boolean;
+  active_stream_connections: number;
+};
+
 const WalletTrackingTerminal = () => {
-  const [walletAddress, setWalletAddress] = useState<string>("");
+  const [walletAddress, setWalletAddress] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return sessionStorage.getItem(WALLET_STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [isTracking, setIsTracking] = useState(false);
   const [logs, setLogs] = useState<WalletTrackingLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
   const logsEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const autoStartedRef = useRef(false);
 
   // Auto-scroll logs to bottom
   useEffect(() => {
@@ -54,6 +72,12 @@ const WalletTrackingTerminal = () => {
     if (!walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       setError("Invalid wallet address format. Must be a valid Ethereum address (0x...)");
       return;
+    }
+
+    try {
+      sessionStorage.setItem(WALLET_STORAGE_KEY, walletAddress.trim());
+    } catch {
+      // ignore quota / private mode
     }
 
     setError(null);
@@ -132,6 +156,46 @@ const WalletTrackingTerminal = () => {
     addLog("INFO", "Wallet tracking stopped");
   }, [addLog]);
 
+  // On mount: query backend readiness (Dome config + active SSE count on server)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/wallet-tracking/status");
+        const data = (await res.json()) as Partial<WalletTrackingStatusResponse>;
+        if (cancelled) return;
+        if (data.dome_configured) {
+          setBackendStatus("ready");
+          const n = data.active_stream_connections ?? 0;
+          addLog(
+            "INFO",
+            `Wallet tracking backend ready — Dome API configured; ${n} active server stream connection(s).`
+          );
+        } else {
+          setBackendStatus("misconfigured");
+          addLog("WARN", "DOME_API_KEY is not configured. Set it in terminal/.env and restart the dev server.");
+        }
+      } catch {
+        if (!cancelled) {
+          setBackendStatus("error");
+          addLog("ERROR", "Could not reach /api/wallet-tracking/status.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addLog]);
+
+  // Resume live stream when opening the page with a saved valid wallet
+  useEffect(() => {
+    if (backendStatus !== "ready" || autoStartedRef.current || isTracking) return;
+    const w = walletAddress.trim();
+    if (!w.match(/^0x[a-fA-F0-9]{40}$/)) return;
+    autoStartedRef.current = true;
+    startTracking();
+  }, [backendStatus, walletAddress, isTracking, startTracking]);
+
   // Get log level styling
   const getLogLevelStyle = (level: WalletTrackingLogEntry["level"]) => {
     switch (level) {
@@ -181,19 +245,33 @@ const WalletTrackingTerminal = () => {
 
           {/* Controls Card */}
           <div className="relative z-20 border border-border rounded-lg bg-card/80 backdrop-blur-sm border-glow">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-primary" />
                 <span className="text-xs text-muted-foreground font-display">
                   WALLET TRACKER
                 </span>
               </div>
-              {isTracking && (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs text-green-500 font-mono">TRACKING</span>
-                </div>
-              )}
+              <div className="flex items-center gap-3 ml-auto">
+                {backendStatus === "checking" && (
+                  <span className="text-xs text-muted-foreground font-mono">Backend…</span>
+                )}
+                {backendStatus === "ready" && !isTracking && (
+                  <span className="text-xs text-green-500/90 font-mono">Backend ready</span>
+                )}
+                {backendStatus === "misconfigured" && (
+                  <span className="text-xs text-warning font-mono">DOME_API_KEY missing</span>
+                )}
+                {backendStatus === "error" && (
+                  <span className="text-xs text-destructive font-mono">Status unreachable</span>
+                )}
+                {isTracking && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs text-green-500 font-mono">TRACKING</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-4 space-y-4">
@@ -270,8 +348,16 @@ const WalletTrackingTerminal = () => {
 
             <div className="h-[400px] overflow-y-auto p-4 font-mono text-sm">
               {logs.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  <span>No activity yet. Enter a wallet address and start tracking.</span>
+                <div className="flex items-center justify-center h-full text-muted-foreground text-center px-4">
+                  <span>
+                    {backendStatus === "checking"
+                      ? "Checking wallet tracking backend…"
+                      : backendStatus === "misconfigured"
+                        ? "Configure DOME_API_KEY to enable tracking. Logs will appear here once you start."
+                        : backendStatus === "error"
+                          ? "Could not load backend status. Logs will appear here after a successful connection."
+                          : "No stream events yet. Enter a wallet and start tracking, or wait for live orders."}
+                  </span>
                 </div>
               ) : (
                 <div className="space-y-1">

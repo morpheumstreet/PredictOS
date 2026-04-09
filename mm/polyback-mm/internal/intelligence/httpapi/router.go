@@ -115,6 +115,12 @@ func Mount(r chi.Router, d *app.Deps) {
 		WriteJSON(w, st, out)
 	})
 
+	r.Get("/polymarket-up-down-15-markets-limit-order-bot/status", func(w http.ResponseWriter, req *http.Request) {
+		_ = req
+		st, out := d.Trading.LimitOrderBotStatus()
+		WriteJSON(w, st, out)
+	})
+
 	r.Post("/polymarket-up-down-15-markets-limit-order-bot", func(w http.ResponseWriter, req *http.Request) {
 		body, _ := io.ReadAll(req.Body)
 		st, out := d.Trading.LimitOrderBot(req.Context(), body)
