@@ -50,3 +50,45 @@ export interface SSEMessage {
   timestamp: string;
 }
 
+/** sessionStorage key for multi-bot wallet tracking state (addresses + selection + running). */
+export const WALLET_TRACKING_STORAGE_KEY_V2 = "predictos-wallet-tracking-v2";
+
+/** Legacy single-address key; migrated into v2 on first read. */
+export const WALLET_TRACKING_STORAGE_KEY_V1 = "predictos-wallet-tracking-address";
+
+export interface WalletTrackingPersistedV2 {
+  /** Normalized addresses (lowercase), UI order. */
+  bots: string[];
+  selected: string | null;
+  /** Subset of `bots` that were streaming last session (auto-resume). */
+  running: string[];
+}
+
+/** In-memory bot row (keyed by normalized address). */
+export interface WalletTrackerBot {
+  /** Canonical `0x` + 40 hex lowercase */
+  addressKey: string;
+  isRunning: boolean;
+  logs: WalletTrackingLogEntry[];
+}
+
+export const WALLET_TRACKING_LOG_CAP = 500;
+
+const WALLET_REGEX = /^0x[a-fA-F0-9]{40}$/;
+
+export function isValidWalletAddress(raw: string): boolean {
+  return WALLET_REGEX.test(raw.trim());
+}
+
+/** Returns normalized key or null if invalid. */
+export function normalizeWalletAddress(raw: string): string | null {
+  const t = raw.trim().toLowerCase();
+  return WALLET_REGEX.test(t) ? t : null;
+}
+
+export function shortWalletLabel(addressKey: string): string {
+  if (addressKey.length < 10) return addressKey;
+  return `${addressKey.slice(0, 6)}…${addressKey.slice(-4)}`;
+}
+
+export type WalletTrackerBackendStatus = "checking" | "ready" | "misconfigured" | "error";
