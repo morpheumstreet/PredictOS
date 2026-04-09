@@ -1,5 +1,6 @@
-// Package evmrpc provides JSON-RPC endpoint probing and client dial with latency-based selection,
-// following the approach in morpheum-labs/pricefeeding rpcscan (parallel probes, pick fastest).
+// Package evmrpc provides JSON-RPC endpoint probing, latency-based selection, and optional
+// automatic failover via [Manager.Do] / [IsFailoverError], following the parallel-probe idea
+// in morpheum-labs/pricefeeding rpcscan.
 package evmrpc
 
 import (
@@ -75,7 +76,7 @@ func dialFastestFromNormalized(ctx context.Context, urls []string) (*ethclient.C
 	}
 	c, err := ethclient.DialContext(ctx, u)
 	if err != nil {
-		return nil, "", err
+		return nil, u, err
 	}
 	return c, u, nil
 }
