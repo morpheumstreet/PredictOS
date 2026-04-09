@@ -11,13 +11,37 @@ import (
 )
 
 type Root struct {
-	Hft            Hft          `yaml:"hft"`
-	Executor       ExecutorCfg  `yaml:"executor"`
-	Kafka          KafkaCfg     `yaml:"kafka"`
-	Server         ServerCfg    `yaml:"server"`
-	Infrastructure InfraRoot    `yaml:"infrastructure"`
-	Ingestor       IngestorCfg  `yaml:"ingestor"`
-	Analytics      AnalyticsCfg `yaml:"analytics"`
+	Hft            Hft             `yaml:"hft"`
+	Executor       ExecutorCfg     `yaml:"executor"`
+	Kafka          KafkaCfg        `yaml:"kafka"`
+	Server         ServerCfg       `yaml:"server"`
+	Infrastructure InfraRoot       `yaml:"infrastructure"`
+	Ingestor       IngestorCfg     `yaml:"ingestor"`
+	Analytics      AnalyticsCfg    `yaml:"analytics"`
+	Intelligence   IntelligenceCfg `yaml:"intelligence"`
+}
+
+// IntelligenceCfg holds HTTP APIs used by cmd/intelligence (Dome, Polyfactual).
+// Env when YAML empty: DOME_API_KEY, DOME_BASE_URL, POLYFACTUAL_API_KEY, POLYFACTUAL_BASE_URL.
+// If base_url is still empty or whitespace after YAML + env, config.Load sets DefaultDomeAPIBaseURL / DefaultPolyfactualAPIBaseURL.
+// Kalshi primary data: hft.kalshi_dflow; Polymarket metadata: hft.polymarket.gamma_url (Gamma is public).
+type IntelligenceCfg struct {
+	Dome        DomeAPICfg        `yaml:"dome"`
+	Polyfactual PolyfactualAPICfg `yaml:"polyfactual"`
+}
+
+// DomeAPICfg is the Dome REST API (Kalshi market lists, Polymarket routing in UI, etc.).
+// Empty base_url → DefaultDomeAPIBaseURL after Load (same as internal/platforms/dome).
+type DomeAPICfg struct {
+	BaseURL string `yaml:"base_url"`
+	APIKey  string `yaml:"api_key"`
+}
+
+// PolyfactualAPICfg is the Polyfactual Deep Research HTTP API.
+// Empty base_url → DefaultPolyfactualAPIBaseURL after Load.
+type PolyfactualAPICfg struct {
+	BaseURL string `yaml:"base_url"`
+	APIKey  string `yaml:"api_key"`
 }
 
 type Hft struct {
@@ -34,6 +58,7 @@ type Hft struct {
 
 // LimitlessCfg is optional; secrets should stay empty in committed configs (use .env / private overrides).
 // Env fallback when YAML empty: LIMITLESS_API_KEY, LIMITLESS_WALLET_ADDRESS.
+// Empty base_url after YAML + env → DefaultLimitlessAPIBaseURL.
 type LimitlessCfg struct {
 	BaseURL       string `yaml:"base_url"`
 	APIKey        string `yaml:"api_key"`
@@ -41,6 +66,7 @@ type LimitlessCfg struct {
 }
 
 // PredictFunCfg is optional (Predict.fun REST). Env when YAML empty: PREDICT_FUN_API_KEY, PREDICT_FUN_PRIVATE_KEY, PREDICT_FUN_BASE_URL.
+// Empty base_url after YAML + env → DefaultPredictFunAPIBaseURL.
 type PredictFunCfg struct {
 	BaseURL    string `yaml:"base_url"`
 	APIKey     string `yaml:"api_key"`
@@ -48,6 +74,7 @@ type PredictFunCfg struct {
 }
 
 // KalshiDFlowCfg is optional (Kalshi-shaped markets via DFlow). Env when YAML empty: DFLOW_API_KEY, DFLOW_LIVE_EVENT_TICKER, DFLOW_BASE_URL.
+// Empty base_url after YAML + env → DefaultDFlowAPIBaseURL (internal/platforms/kalshidflow).
 type KalshiDFlowCfg struct {
 	BaseURL     string `yaml:"base_url"`
 	APIKey      string `yaml:"api_key"`
@@ -67,6 +94,8 @@ type HftExecutor struct {
 	SendLiveAck bool   `yaml:"send_live_ack"`
 }
 
+// PolymarketCfg HFT Polymarket endpoints. Empty gamma_url / clob_rest_url / clob_ws_url (after YAML + env)
+// → DefaultPolymarketGammaURL, DefaultPolymarketClobRestURL, DefaultPolymarketClobWsURL.
 type PolymarketCfg struct {
 	GammaURL                       string  `yaml:"gamma_url"`
 	ClobRestURL                    string  `yaml:"clob_rest_url"`
@@ -247,6 +276,7 @@ type IngestorCfg struct {
 	Clickhouse ClickhouseHTTP `yaml:"clickhouse"`
 }
 
+// PolymarketIngestor ingestor-side Polymarket settings. Empty data_api_base_url → DefaultPolymarketDataAPIBaseURL.
 type PolymarketIngestor struct {
 	Username       string `yaml:"username"`
 	ProxyAddress   string `yaml:"proxy_address"`
@@ -286,6 +316,8 @@ func Load(path string) (*Root, error) {
 	applyLimitlessEnv(&r.Hft.Limitless)
 	applyPredictFunEnv(&r.Hft.PredictFun)
 	applyKalshiDFlowEnv(&r.Hft.KalshiDFlow)
+	applyIntelligenceEnv(&r.Intelligence)
+	applyDefaultAPIBaseURLs(&r)
 	normalizeHftExecutorBaseURLFromPublicAPI(&r)
 	return &r, nil
 }
@@ -346,6 +378,21 @@ func applyKalshiDFlowEnv(k *KalshiDFlowCfg) {
 	}
 	if k.EventTicker == "" {
 		k.EventTicker = os.Getenv("DFLOW_LIVE_EVENT_TICKER")
+	}
+}
+
+func applyIntelligenceEnv(i *IntelligenceCfg) {
+	if i.Dome.APIKey == "" {
+		i.Dome.APIKey = os.Getenv("DOME_API_KEY")
+	}
+	if i.Dome.BaseURL == "" {
+		i.Dome.BaseURL = os.Getenv("DOME_BASE_URL")
+	}
+	if i.Polyfactual.APIKey == "" {
+		i.Polyfactual.APIKey = os.Getenv("POLYFACTUAL_API_KEY")
+	}
+	if i.Polyfactual.BaseURL == "" {
+		i.Polyfactual.BaseURL = os.Getenv("POLYFACTUAL_BASE_URL")
 	}
 }
 

@@ -1,10 +1,13 @@
-# Template for local testing secrets (tracked in git — no real keys here).
+# Template for local testing overlays (tracked in git). Keep all secrets EMPTY here.
 #
-# One-time setup:
+# Put real values in configs/real.testing.yml (gitignored), not in this file:
 #   cp configs/real.testing.template.yml configs/real.testing.yml
 #
-# Polymarket CLOB relayer/builder (or set env: POLY_RELAYER_API_KEY, POLY_BUILDER_API_KEY,
-# POLY_BUILDER_SECRET, POLY_BUILDER_PASSPHRASE). Merge order: develop.yaml → real.testing.yml → real.yml
+# Merge order: develop.yaml → real.testing.yml → real.yml
+#
+# Polymarket CLOB relayer/builder (or env: POLY_RELAYER_API_KEY, POLY_BUILDER_*).
+# Intelligence Dome / Polyfactual (or env: DOME_API_KEY, DOME_BASE_URL, POLYFACTUAL_*).
+# Empty base_url → defaults in internal/config/api_base_defaults.go after config.Load.
 #
 # Optional: override public API URL for terminal / reverse proxy
 # server:
@@ -30,3 +33,12 @@ hft:
     base_url: ""
     api_key: ""
     event_ticker: ""
+
+# Intelligence: Dome + Polyfactual (or DOME_API_KEY / POLYFACTUAL_* env)
+intelligence:
+  dome:
+    base_url: ""
+    api_key: ""
+  polyfactual:
+    base_url: ""
+    api_key: ""

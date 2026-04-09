@@ -48,6 +48,26 @@ func TestApplyKalshiDFlowEnv(t *testing.T) {
 	}
 }
 
+func TestApplyIntelligenceEnv(t *testing.T) {
+	t.Setenv("DOME_BASE_URL", "https://dome.example/v1")
+	t.Setenv("DOME_API_KEY", "domek")
+	t.Setenv("POLYFACTUAL_BASE_URL", "https://pf.example")
+	t.Setenv("POLYFACTUAL_API_KEY", "pfk")
+	i := IntelligenceCfg{}
+	applyIntelligenceEnv(&i)
+	if i.Dome.BaseURL != "https://dome.example/v1" || i.Dome.APIKey != "domek" {
+		t.Fatalf("dome: %+v", i.Dome)
+	}
+	if i.Polyfactual.BaseURL != "https://pf.example" || i.Polyfactual.APIKey != "pfk" {
+		t.Fatalf("polyfactual: %+v", i.Polyfactual)
+	}
+	i2 := IntelligenceCfg{Dome: DomeAPICfg{APIKey: "yaml-dome"}}
+	applyIntelligenceEnv(&i2)
+	if i2.Dome.APIKey != "yaml-dome" || i2.Dome.BaseURL != "https://dome.example/v1" {
+		t.Fatal("yaml api_key should win; base_url still from env when empty in yaml")
+	}
+}
+
 func TestApplyPolymarketEnv(t *testing.T) {
 	t.Setenv("POLY_RELAYER_API_KEY", "relayer")
 	t.Setenv("POLY_BUILDER_API_KEY", "bkey")
@@ -182,6 +202,75 @@ kafka:
 	}
 	if r.Hft.Executor.BaseURL != "http://poly.example:7777" {
 		t.Fatalf("want executor base_url from public_api_base_url, got %q", r.Hft.Executor.BaseURL)
+	}
+}
+
+func TestLoad_appliesDefaultAPIBaseURLs(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	if err := os.WriteFile(base, []byte(`hft:
+  mode: PAPER
+  polymarket:
+    gamma_url: ""
+    clob_rest_url: "  "
+    clob_ws_url: ""
+    auth:
+      private_key: ""
+  limitless:
+    base_url: ""
+    api_key: ""
+  predict_fun:
+    base_url: ""
+    api_key: ""
+  kalshi_dflow:
+    base_url: ""
+    api_key: ""
+intelligence:
+  dome:
+    base_url: ""
+    api_key: ""
+  polyfactual:
+    base_url: ""
+    api_key: ""
+ingestor:
+  polymarket:
+    data_api_base_url: ""
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Intelligence.Dome.BaseURL != DefaultDomeAPIBaseURL {
+		t.Fatalf("dome base: %q", r.Intelligence.Dome.BaseURL)
+	}
+	if r.Intelligence.Polyfactual.BaseURL != DefaultPolyfactualAPIBaseURL {
+		t.Fatalf("polyfactual base: %q", r.Intelligence.Polyfactual.BaseURL)
+	}
+	if r.Hft.KalshiDFlow.BaseURL != DefaultDFlowAPIBaseURL {
+		t.Fatalf("dflow base: %q", r.Hft.KalshiDFlow.BaseURL)
+	}
+	if r.Hft.PredictFun.BaseURL != DefaultPredictFunAPIBaseURL {
+		t.Fatalf("predict_fun base: %q", r.Hft.PredictFun.BaseURL)
+	}
+	if r.Hft.Limitless.BaseURL != DefaultLimitlessAPIBaseURL {
+		t.Fatalf("limitless base: %q", r.Hft.Limitless.BaseURL)
+	}
+	if r.Hft.Polymarket.GammaURL != DefaultPolymarketGammaURL {
+		t.Fatalf("gamma: %q", r.Hft.Polymarket.GammaURL)
+	}
+	if r.Hft.Polymarket.ClobRestURL != DefaultPolymarketClobRestURL {
+		t.Fatalf("clob rest: %q", r.Hft.Polymarket.ClobRestURL)
+	}
+	if r.Hft.Polymarket.ClobWsURL != DefaultPolymarketClobWsURL {
+		t.Fatalf("clob ws: %q", r.Hft.Polymarket.ClobWsURL)
+	}
+	if r.Ingestor.Polymarket.DataAPIBaseURL != DefaultPolymarketDataAPIBaseURL {
+		t.Fatalf("data api: %q", r.Ingestor.Polymarket.DataAPIBaseURL)
 	}
 }
 

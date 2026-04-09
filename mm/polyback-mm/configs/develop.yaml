@@ -168,3 +168,15 @@ ingestor:
 
 analytics:
   clickhouse_dsn: clickhouse://default@127.0.0.1:9000/polybot?dial_timeout=5s
+
+# Intelligence HTTP APIs (cmd/intelligence). Merge order: develop → real.testing.yml → real.yml, then env, then defaults.
+# Empty or omitted base_url (and no matching *_BASE_URL env) → hardcoded defaults in internal/config/api_base_defaults.go
+# (same URLs as internal/platforms/dome, polyfactual, etc.). Secrets: DOME_API_KEY, POLYFACTUAL_API_KEY or YAML api_key.
+# Related: Kalshi/DFlow hft.kalshi_dflow; Polymarket hft.polymarket gamma/clob URLs; ingestor.polymarket.data_api_base_url.
+intelligence:
+  dome:
+    base_url: ""
+    api_key: ""
+  polyfactual:
+    base_url: ""
+    api_key: ""

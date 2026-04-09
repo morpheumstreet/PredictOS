@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -73,12 +72,6 @@ func (g *GetEvents) Run(ctx context.Context, body []byte) (status int, out map[s
 		eventIdentifier = ticker
 		base := strings.TrimSpace(g.root.Hft.KalshiDFlow.BaseURL)
 		key := strings.TrimSpace(g.root.Hft.KalshiDFlow.APIKey)
-		if key == "" {
-			key = strings.TrimSpace(os.Getenv("DFLOW_API_KEY"))
-		}
-		if base == "" {
-			base = strings.TrimSpace(os.Getenv("DFLOW_BASE_URL"))
-		}
 		var marketsErr error
 		if key != "" {
 			raw, ferr := kalshidflow.FetchMarketsByEventTicker(ctx, base, key, ticker)
@@ -257,12 +250,13 @@ func polyNotFoundOr502(err error, slug string, meta func() map[string]any) (int,
 	return 502, map[string]any{"success": false, "error": fmt.Sprintf("Failed to fetch markets from Polymarket: %s", msg), "metadata": meta()}
 }
 
-// fetchKalshiViaDome is optional when DFlow fails — skip unless DOME_API_KEY set
+// fetchKalshiViaDome is optional when DFlow fails — requires intelligence.dome or DOME_API_KEY.
 func (g *GetEvents) fetchKalshiViaDome(ctx context.Context, ticker string) ([]any, error) {
-	dc, err := dome.NewFromEnv()
-	if err != nil {
-		return nil, err
+	key := strings.TrimSpace(g.root.Intelligence.Dome.APIKey)
+	if key == "" {
+		return nil, fmt.Errorf("DOME_API_KEY is not set")
 	}
+	dc := dome.NewClient(key, g.root.Intelligence.Dome.BaseURL)
 	raw, err := dc.KalshiMarketsByEvent(ctx, ticker, "open", 100)
 	if err != nil {
 		return nil, err

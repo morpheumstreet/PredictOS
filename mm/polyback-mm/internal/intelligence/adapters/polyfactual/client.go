@@ -18,22 +18,34 @@ const defaultTimeout = 5 * time.Minute
 
 // Client calls the Polyfactual Deep Research HTTP API.
 type Client struct {
-	baseURL string
-	http    *http.Client
+	baseURL        string
+	configuredKey  string
+	http           *http.Client
 }
 
-func NewClient(hc *http.Client) *Client {
+// NewClient builds a client. Pass empty baseURL and apiKey to read only from POLYFACTUAL_BASE_URL / POLYFACTUAL_API_KEY (legacy). After config.Load, prefer passing root.Intelligence.Polyfactual values so YAML can supply credentials.
+func NewClient(hc *http.Client, baseURL, apiKey string) *Client {
 	if hc == nil {
 		hc = &http.Client{Timeout: defaultTimeout}
 	}
-	base := strings.TrimSpace(os.Getenv("POLYFACTUAL_BASE_URL"))
+	base := strings.TrimSpace(baseURL)
+	if base == "" {
+		base = strings.TrimSpace(os.Getenv("POLYFACTUAL_BASE_URL"))
+	}
 	if base == "" {
 		base = defaultBaseURL
 	}
-	return &Client{baseURL: strings.TrimSuffix(base, "/"), http: hc}
+	return &Client{
+		baseURL:       strings.TrimSuffix(base, "/"),
+		configuredKey: strings.TrimSpace(apiKey),
+		http:          hc,
+	}
 }
 
-func (c *Client) apiKey() (string, error) {
+func (c *Client) resolveAPIKey() (string, error) {
+	if k := strings.TrimSpace(c.configuredKey); k != "" {
+		return k, nil
+	}
 	k := strings.TrimSpace(os.Getenv("POLYFACTUAL_API_KEY"))
 	if k == "" {
 		return "", fmt.Errorf("POLYFACTUAL_API_KEY is not set")
@@ -49,7 +61,7 @@ type AnswerRequest struct {
 
 // GenerateAnswer POSTs /answer and returns the decoded success payload (mirrors TS PolyfactualResponse).
 func (c *Client) GenerateAnswer(req AnswerRequest) (map[string]any, error) {
-	key, err := c.apiKey()
+	key, err := c.resolveAPIKey()
 	if err != nil {
 		return nil, err
 	}

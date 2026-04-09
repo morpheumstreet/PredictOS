@@ -21,7 +21,20 @@ Override with `POLYBACK_CONFIG` or pass the YAML path as the first argument to e
 
 All routes are under **`POST /api/intelligence/<name>`** (same path suffixes as the former Supabase functions): `get-events`, `event-analysis-agent`, `analyze-event-markets`, `bookmaker-agent`, `arbitrage-finder`, `mapper-agent`, `polyfactual-research`, `x402-seller`, `polymarket-put-order`, `polymarket-up-down-15-markets-limit-order-bot`, `polymarket-position-tracker`, plus `POST /api/intelligence/ping`.
 
-Secrets and provider keys use **environment variables** on the intelligence process (e.g. `OPENAI_API_KEY`, `XAI_API_KEY`, `DFLOW_API_KEY`, `DOME_API_KEY`, `POLYFACTUAL_API_KEY`, `X402_*`, `BLOCKRUN_WALLET_KEY`, `POLYMARKET_PROXY_WALLET_ADDRESS`). The PredictOS terminal proxies to this service via `INTELLIGENCE_BASE_URL`.
+**Config file:** [`configs/develop.yaml`](../configs/develop.yaml) keys under `intelligence` (merged with `real.testing.yml` / `real.yml`):
+
+| Key | Purpose | Env if YAML empty | Effective base when still empty |
+|-----|---------|-------------------|----------------------------------|
+| `intelligence.dome.base_url` | Dome REST base | `DOME_BASE_URL` | `DefaultDomeAPIBaseURL` in `internal/config/api_base_defaults.go` (`https://api.domeapi.io/v1`) |
+| `intelligence.dome.api_key` | Dome bearer token | `DOME_API_KEY` | (no default; required for Dome calls) |
+| `intelligence.polyfactual.base_url` | Polyfactual API base | `POLYFACTUAL_BASE_URL` | `DefaultPolyfactualAPIBaseURL` |
+| `intelligence.polyfactual.api_key` | Polyfactual `X-API-Key` | `POLYFACTUAL_API_KEY` | (no default) |
+
+Whitespace-only `base_url` in YAML is treated as empty and gets the same defaults.
+
+**Related (other YAML sections):** `hft.kalshi_dflow.base_url` → env `DFLOW_BASE_URL` then `DefaultDFlowAPIBaseURL`. `hft.polymarket` gamma / CLOB REST / CLOB WS URLs → defaults in `applyDefaultAPIBaseURLs`. `ingestor.polymarket.data_api_base_url` → `DefaultPolymarketDataAPIBaseURL`. See `internal/config/api_base_defaults.go` for the full list and keep in sync with platform packages.
+
+Other secrets remain **environment-only** on the intelligence process (e.g. `OPENAI_API_KEY`, `XAI_API_KEY`, `X402_*`, `BLOCKRUN_WALLET_KEY`, `POLYMARKET_PROXY_WALLET_ADDRESS`). The PredictOS terminal proxies to this service via `INTELLIGENCE_BASE_URL`.
 
 **Note:** This stack does **not** expose a WebSocket API to clients. It connects **outbound** to Polymarket CLOB WebSocket. For streaming, consume **Kafka** (`hft.events.topic`, default `polybot.events`) using the envelope in `internal/hftevents/publisher.go` (`ts`, `source`, `type`, `data`). Event types include `market_ws.tob`, `strategy.gabagool.order`, `executor.order.*`.
 

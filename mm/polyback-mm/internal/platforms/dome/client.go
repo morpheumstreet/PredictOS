@@ -35,6 +35,7 @@ func NewClient(apiKey, baseURL string) *Client {
 }
 
 // NewFromEnv uses DOME_API_KEY and optional DOME_BASE_URL.
+// Prefer loading credentials from configs/develop.yaml → intelligence.dome (merged overlays + env fallback in config.Load).
 func NewFromEnv() (*Client, error) {
 	k := strings.TrimSpace(os.Getenv("DOME_API_KEY"))
 	if k == "" {

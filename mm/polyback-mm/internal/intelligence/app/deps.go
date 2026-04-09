@@ -36,7 +36,7 @@ func NewDeps(root *config.Root) *Deps {
 		root = &config.Root{}
 	}
 	hc := &http.Client{Timeout: 120 * time.Second}
-	pf := polyfactual.NewClient(hc)
+	pf := polyfactual.NewClient(hc, root.Intelligence.Polyfactual.BaseURL, root.Intelligence.Polyfactual.APIKey)
 	x4 := x402svc.NewService(hc)
 	llmFacade := llm.NewFacade(hc)
 
