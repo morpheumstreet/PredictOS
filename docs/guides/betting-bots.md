@@ -230,6 +230,10 @@ After setting up your environment variables:
 4. **Monitor your bot** regularly for unexpected behavior
 5. **Start with small amounts** until you're confident in the bot's behavior
 
+## See also
+
+- [../architecture/betting-bot-ladder.md](../architecture/betting-bot-ladder.md) — ladder HTTP contract, rung algorithm, and code map (terminal and polyback-mm must stay in sync)
+
 ---
 
 ← [Back to main README](../../README.md)

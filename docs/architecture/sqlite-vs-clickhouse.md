@@ -100,7 +100,7 @@ New SQLite files should live next to the **owning app** (e.g. under `terminal/da
 
 1. **Writing tick-level or sub-second market data to SQLite** — will contend on locks and grow poorly; use ClickHouse (or a bounded in-memory buffer flushing to CH).
 2. **Using ClickHouse as the only store for editable user settings** — awkward update semantics; use SQLite or a small KV.
-3. **Duplicating the same canonical event in SQLite and CH without a source of truth** — pick one writer path; if you need both, define **ETL** (e.g. nightly) rather than double-write from the UI. The terminal run log follows this: **SQLite is canonical**; ClickHouse is loaded only via the export script (§8).
+3. **Duplicating the same canonical event in SQLite and CH without a source of truth** — pick one writer path; if you need both, define **ETL** (e.g. nightly) rather than double-write from the UI. The terminal run log follows this: **SQLite is canonical**; ClickHouse is loaded only via the export script (section 8 below).
 4. **Storing secrets in SQLite committed to git** — use env, secret manager, or encrypted local store; SQLite is for non-secret or encrypted-at-rest designs only.
 
 ---
@@ -141,4 +141,4 @@ Supabase in this repository is primarily **hosted Edge Functions** (HTTP), not a
 
 - ClickHouse DDL: `mm/polyback-mm/deploy/clickhouse/init/`
 - SQLite usage: `terminal/src/server/api/alpha-rules.ts`, `terminal/src/server/alpha-rules-db-path.ts`, `terminal/src/server/local-run-log-db.ts`
-- MM integration overview: `docs/operation_mm/integrate.md`
+- MM integration overview: [docs/operations/polyback-mm/integration.md](../operations/polyback-mm/integration.md)

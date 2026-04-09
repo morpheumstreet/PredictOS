@@ -107,21 +107,21 @@ Predict Super Intelligence operates through a sophisticated **agent pipeline**:
 - **Budget Controls** — Set strict limits for autonomous execution (\$1-\$100)
 - **🛡️ Verifiable Agents** — Permanently store agent analysis on [Irys](https://irys.xyz/) blockchain for transparent, verifiable AI predictions
 
-> 📖 **[Full Setup Guide →](docs/features/super-intelligence.md)**
+> 📖 **[Full Setup Guide →](docs/guides/super-intelligence.md)**
 
 ## 🎯 Current Features (v2.4.0)
 
-**Feature documentation index:** [docs/features/README.md](docs/features/README.md) — overview of this folder and how each setup guide fits together.
+**Documentation hub:** [docs/README.md](docs/README.md) — guides, architecture, platforms, and polyback-mm operations. **Feature guides:** [docs/guides/README.md](docs/guides/README.md).
 
 | Feature | Status | Description | Setup Guide |
 |---------|--------|-------------|-------------|
 | **🌐 Supported Markets** | ✅ Released | **Kalshi**, **Polymarket**, and **Jupiter** (Kalshi-based). Data powered by [DFlow](https://pond.dflow.net/introduction) (Kalshi/Jupiter) and [Dome](https://domeapi.io/) (Polymarket). | — |
-| **🧠 Super Intelligence** | ✅ Released | Multi-agent AI system with Supervised and Autonomous modes. Deploy multiple AI agents with different models and tools, aggregate insights via Bookmaker Agent, and execute trades automatically or via OkBet. Includes AI-powered market analysis and Polyfactual Deep Research. | [📖 Setup Guide](docs/features/super-intelligence.md) |
-| **⚖️ Arbitrage Intelligence** | ✅ Released | AI-powered cross-platform arbitrage detection between Polymarket and Kalshi. Paste any market URL, and the system automatically searches for the same market on the other platform, compares prices, and provides actionable arbitrage strategies with profit calculations. | [📖 Setup Guide](docs/features/arbitrage-intelligence.md) |
-| **🛡️ Verifiable Agents** | ✅ Released | Permanently store agent analysis on [Irys](https://irys.xyz/) blockchain for transparent, verifiable AI predictions. Supports both devnet (free, temporary) and mainnet (permanent). | [📖 Setup Guide](docs/features/verifiable-agents.md) |
-| **💸 x402 / PayAI Integration** | ✅ Released | Access paid AI services and data providers through the x402 protocol. Browse the PayAI bazaar, select sellers, and pay with USDC on Solana or Base. Use as a tool in your Predict Agents. | [📖 Setup Guide](docs/features/x402-integration.md) |
-| **Betting Bots** | ✅ Released | Polymarket 15 Minute Up/Down Arbitrage Bot — **Vanilla Mode** (single price straddle) and **Ladder Mode** (multi-level tapered allocation for maximized fill rates) | [📖 Setup Guide](docs/features/betting-bots.md) |
-| **Wallet Tracking** | ✅ Released | Real-time order tracking for any Polymarket wallets using Dome SDK WebSockets — 10 seconds faster than hosted bots | [📖 Setup Guide](docs/features/wallet-tracking.md) |
+| **🧠 Super Intelligence** | ✅ Released | Multi-agent AI system with Supervised and Autonomous modes. Deploy multiple AI agents with different models and tools, aggregate insights via Bookmaker Agent, and execute trades automatically or via OkBet. Includes AI-powered market analysis and Polyfactual Deep Research. | [📖 Setup Guide](docs/guides/super-intelligence.md) |
+| **⚖️ Arbitrage Intelligence** | ✅ Released | AI-powered cross-platform arbitrage detection between Polymarket and Kalshi. Paste any market URL, and the system automatically searches for the same market on the other platform, compares prices, and provides actionable arbitrage strategies with profit calculations. | [📖 Setup Guide](docs/guides/arbitrage-intelligence.md) |
+| **🛡️ Verifiable Agents** | ✅ Released | Permanently store agent analysis on [Irys](https://irys.xyz/) blockchain for transparent, verifiable AI predictions. Supports both devnet (free, temporary) and mainnet (permanent). | [📖 Setup Guide](docs/guides/verifiable-agents.md) |
+| **💸 x402 / PayAI Integration** | ✅ Released | Access paid AI services and data providers through the x402 protocol. Browse the PayAI bazaar, select sellers, and pay with USDC on Solana or Base. Use as a tool in your Predict Agents. | [📖 Setup Guide](docs/guides/x402-integration.md) |
+| **Betting Bots** | ✅ Released | Polymarket 15 Minute Up/Down Arbitrage Bot — **Vanilla Mode** (single price straddle) and **Ladder Mode** (multi-level tapered allocation for maximized fill rates) | [📖 Setup Guide](docs/guides/betting-bots.md) |
+| **Wallet Tracking** | ✅ Released | Real-time order tracking for any Polymarket wallets using Dome SDK WebSockets — 10 seconds faster than hosted bots | [📖 Setup Guide](docs/guides/wallet-tracking.md) |
 
 ## 🔮 Coming Soon
 
@@ -209,9 +209,9 @@ bash scripts/start-all-services.sh
 ```
 
 > 📖 **Feature-specific setup guides (same keys as before, different process):**
-> - **Super Intelligence:** [docs/features/super-intelligence.md](docs/features/super-intelligence.md)
-> - **Betting Bots:** [docs/features/betting-bots.md](docs/features/betting-bots.md)
-> - **Wallet Tracking:** [docs/features/wallet-tracking.md](docs/features/wallet-tracking.md) — `DOME_API_KEY` in `terminal/.env` only
+> - **Super Intelligence:** [docs/guides/super-intelligence.md](docs/guides/super-intelligence.md)
+> - **Betting Bots:** [docs/guides/betting-bots.md](docs/guides/betting-bots.md)
+> - **Wallet Tracking:** [docs/guides/wallet-tracking.md](docs/guides/wallet-tracking.md) — `DOME_API_KEY` in `terminal/.env` only
 
 ### 3. Start the Frontend (Terminal)
 

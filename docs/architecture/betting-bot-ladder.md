@@ -99,7 +99,7 @@ When `success: true` and ladder was used:
    - `allocationPercent_i = 100 * w_i / sum(w)`  
    - `sizeUsd_i = totalBankroll * w_i` (round monetary fields consistently — terminal uses 2 decimal places for display)
 
-**Source of truth for parity:** `calculateLadderRungs` in `BettingBotTerminalLadder.tsx`. Any change there must be ported to `mm/polyback-mm/internal/intelligence/usecase/trading.go` (or shared spec + tests).
+**Source of truth for parity:** `calculateLadderRungs` in `BettingBotTerminalLadder.tsx`. Any change there must be ported to `mm/polyback-mm/internal/intelligence/usecase/ladder_rungs.go` and orchestration in `trading.go` (or a shared spec plus tests).
 
 ---
 
@@ -150,4 +150,4 @@ When `success: true` and ladder was used:
 - Market not yet on Gamma → `success: false`, same as vanilla.
 - Executor returns 501 (live not wired) → each leg fails with executor message; `ladderSuccessfulOrders` reflects paper/live reality.
 
-This architecture is the contract **BettingBotTerminalLadder** expects; polyback-mm implements **§5–§6** in `ladder_rungs.go` + `LimitOrderBot` and returns **§4.2**.
+This architecture is the contract **BettingBotTerminalLadder** expects; polyback-mm implements sections 5–6 in `ladder_rungs.go` plus `LimitOrderBot`, and returns the ladder success shape described in section 4.2.
