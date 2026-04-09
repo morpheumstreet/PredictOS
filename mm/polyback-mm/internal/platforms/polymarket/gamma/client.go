@@ -1,6 +1,7 @@
 package gamma
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,9 +17,17 @@ type Client struct {
 }
 
 func New(base string) *Client {
+	return NewWithHTTP(base, nil)
+}
+
+// NewWithHTTP builds a Gamma client. When hc is nil, a 15s timeout client is used.
+func NewWithHTTP(base string, hc *http.Client) *Client {
+	if hc == nil {
+		hc = &http.Client{Timeout: 15 * time.Second}
+	}
 	return &Client{
-		baseURL: strings.TrimSuffix(strings.TrimSpace(base), "/"),
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		baseURL:    strings.TrimSuffix(strings.TrimSpace(base), "/"),
+		httpClient: hc,
 	}
 }
 
@@ -72,6 +81,37 @@ func (c *Client) EventsBySlug(slug string) (json.RawMessage, error) {
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("gamma /events: status %d body=%s", resp.StatusCode, string(b))
+	}
+	return json.RawMessage(b), nil
+}
+
+// FetchEventsPage calls GET /events with list-style query params (pagination).
+// Matches Polymarket Gamma usage in strat/alpha-rules/collect.py.
+func (c *Client) FetchEventsPage(ctx context.Context, limit, offset int, active, closed, archived bool) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("active", fmt.Sprintf("%t", active))
+	q.Set("closed", fmt.Sprintf("%t", closed))
+	q.Set("archived", fmt.Sprintf("%t", archived))
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	u := c.baseURL + "/events?" + q.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "PredictOS-polyback-intelligence/1.0")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("gamma /events list: status %d body=%s", resp.StatusCode, string(b))
 	}
 	return json.RawMessage(b), nil
 }

@@ -126,4 +126,20 @@ func Mount(r chi.Router, d *app.Deps) {
 		st, out := d.Trading.PositionTracker(req.Context(), body)
 		WriteJSON(w, st, out)
 	})
+
+	r.Post("/alpha-rules/collect", func(w http.ResponseWriter, req *http.Request) {
+		body, _ := io.ReadAll(req.Body)
+		ctx, cancel := context.WithTimeout(req.Context(), 600*time.Second)
+		defer cancel()
+		st, out := d.AlphaRules.RunCollect(ctx, body)
+		WriteJSON(w, st, out)
+	})
+
+	r.Post("/alpha-rules/description-agent", func(w http.ResponseWriter, req *http.Request) {
+		body, _ := io.ReadAll(req.Body)
+		ctx, cancel := context.WithTimeout(req.Context(), 600*time.Second)
+		defer cancel()
+		st, out := d.AlphaRules.RunDescriptionAgent(ctx, body)
+		WriteJSON(w, st, out)
+	})
 }

@@ -27,6 +27,7 @@ type Deps struct {
 	ArbitrageFinder *usecase.ArbitrageFinder
 	Mapper          *usecase.Mapper
 	Trading         *usecase.Trading
+	AlphaRules      *usecase.AlphaRules
 }
 
 // NewDeps builds defaults from config and environment.
@@ -52,5 +53,6 @@ func NewDeps(root *config.Root) *Deps {
 		ArbitrageFinder: usecase.NewArbitrageFinder(root, hc, llmFacade),
 		Mapper:          usecase.NewMapper(),
 		Trading:         usecase.NewTrading(root, hc),
+		AlphaRules:      usecase.NewAlphaRules(root, hc, llmFacade),
 	}
 }

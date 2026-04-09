@@ -254,11 +254,87 @@ func (t *Trading) postLimitAndShape(req map[string]any) (int, map[string]any) {
 
 func orderIDFromExecutor(exec map[string]any) string {
 	if cr, ok := exec["clobResponse"].(map[string]any); ok {
-		if id, ok := cr["orderID"].(string); ok {
+		if id, ok := cr["orderID"].(string); ok && id != "" {
+			return id
+		}
+		if id, ok := cr["orderId"].(string); ok && id != "" {
 			return id
 		}
 	}
 	return ""
+}
+
+// executorLimitOrderOutcome interprets POST /api/polymarket/orders/limit JSON (OrderSubmissionResult + nested clobResponse).
+func executorLimitOrderOutcome(httpCode int, body []byte) (success bool, orderID string, errMsg string) {
+	if httpCode < 200 || httpCode >= 300 {
+		s := strings.TrimSpace(string(body))
+		if s == "" {
+			s = fmt.Sprintf("executor HTTP %d", httpCode)
+		}
+		return false, "", s
+	}
+	var exec map[string]any
+	if err := json.Unmarshal(body, &exec); err != nil {
+		return false, "", "executor returned invalid JSON"
+	}
+	cr, _ := exec["clobResponse"].(map[string]any)
+	if cr != nil {
+		if s, _ := cr["status"].(string); strings.EqualFold(s, "REJECTED") {
+			reason, _ := cr["reason"].(string)
+			if strings.TrimSpace(reason) == "" {
+				reason = "order rejected"
+			}
+			return false, "", reason
+		}
+	}
+	id := orderIDFromExecutor(exec)
+	if id != "" {
+		return true, id, ""
+	}
+	if cr != nil {
+		if s, _ := cr["status"].(string); strings.EqualFold(s, "OPEN") {
+			return true, "", ""
+		}
+	}
+	return false, "", "missing order id in executor response"
+}
+
+// upDownClobTokenIDs maps Gamma outcome order to Up (Yes) and Down (No) CLOB token ids.
+func upDownClobTokenIDs(m map[string]any, ids []string) (upTok, downTok string) {
+	if len(ids) < 2 {
+		return "", ""
+	}
+	outcomes := `["Yes","No"]`
+	if o, ok := m["outcomes"].(string); ok && o != "" {
+		outcomes = o
+	}
+	var outs []string
+	_ = json.Unmarshal([]byte(outcomes), &outs)
+	yesIdx, noIdx := -1, -1
+	for i, o := range outs {
+		ol := strings.ToLower(strings.TrimSpace(o))
+		if ol == "yes" || ol == "up" {
+			yesIdx = i
+		}
+		if ol == "no" || ol == "down" {
+			noIdx = i
+		}
+	}
+	if yesIdx >= 0 && yesIdx < len(ids) && noIdx >= 0 && noIdx < len(ids) {
+		return ids[yesIdx], ids[noIdx]
+	}
+	return ids[0], ids[1]
+}
+
+func limitOrderBotOrderResponse(ok bool, orderID, errMsg string) map[string]any {
+	o := map[string]any{"success": ok}
+	if orderID != "" {
+		o["orderId"] = orderID
+	}
+	if errMsg != "" {
+		o["errorMsg"] = errMsg
+	}
+	return o
 }
 
 func numFloat(v any) float64 {
@@ -281,17 +357,28 @@ var assetSlugPrefix = map[string]string{
 
 // LimitOrderBot places up to two BUY limits on up/down tokens via executor (paper mode).
 func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[string]any) {
+	_ = ctx
 	var req map[string]any
 	_ = json.Unmarshal(body, &req)
+	if lad, ok := req["ladder"].(map[string]any); ok {
+		if en, ok := lad["enabled"].(bool); ok && en {
+			return 200, map[string]any{
+				"success": false,
+				"error":   "Ladder mode is not supported by polyback-mm; set INTELLIGENCE_EDGE_FUNCTION_LIMIT_ORDER_BOT or use vanilla mode.",
+				"logs":    []any{},
+			}
+		}
+	}
 	asset, _ := req["asset"].(string)
 	asset = strings.ToUpper(strings.TrimSpace(asset))
 	if _, ok := assetSlugPrefix[asset]; !ok {
 		return 400, map[string]any{"success": false, "error": "Invalid asset. Must be one of: BTC, SOL, ETH, XRP", "logs": []any{}}
 	}
-	price := 0.48
+	pricePct := 48.0
 	if p, ok := req["price"].(float64); ok && p > 0 {
-		price = p / 100
+		pricePct = p
 	}
+	price := pricePct / 100
 	sizeUsd := 25.0
 	if s, ok := req["sizeUsd"].(float64); ok && s > 0 {
 		sizeUsd = s
@@ -316,21 +403,78 @@ func (t *Trading) LimitOrderBot(ctx context.Context, body []byte) (int, map[stri
 	if len(ids) < 2 {
 		return 500, map[string]any{"success": false, "error": "token ids", "logs": []any{}}
 	}
+	upTok, downTok := upDownClobTokenIDs(m, ids)
+	if upTok == "" || downTok == "" {
+		return 500, map[string]any{"success": false, "error": "could not resolve up/down token ids", "logs": []any{}}
+	}
+	sharesEach := math.Floor(sizeUsd / 2 / price)
+	if sharesEach < 5 {
+		return 400, map[string]any{
+			"success": false,
+			"error":   "sizeUsd too small: each side needs at least 5 shares (Polymarket minimum). Increase sizeUsd or lower price.",
+			"logs":    []any{},
+		}
+	}
 	tickDec := decimal.RequireFromString("0.01")
 	f := false
-	sharesEach := math.Floor(sizeUsd / 2 / price)
-	results := []any{}
-	for _, tid := range ids[:2] {
+	place := func(tokenID string) map[string]any {
 		lr := map[string]any{
-			"tokenId": tid, "side": "BUY",
-			"price": decimal.NewFromFloat(price).StringFixed(4),
-			"size":  decimal.NewFromFloat(sharesEach).StringFixed(0),
+			"tokenId": tokenID, "side": "BUY",
+			"price":    decimal.NewFromFloat(price).StringFixed(4),
+			"size":     decimal.NewFromFloat(sharesEach).StringFixed(0),
 			"tickSize": tickDec.String(), "negRisk": &f,
 		}
-		code, b, err := t.postExecutor("/api/polymarket/orders/limit", lr)
-		results = append(results, map[string]any{"tokenId": tid, "status": code, "body": string(b), "err": errString(err)})
+		code, b, perr := t.postExecutor("/api/polymarket/orders/limit", lr)
+		if perr != nil {
+			return limitOrderBotOrderResponse(false, "", perr.Error())
+		}
+		ok, oid, emsg := executorLimitOrderOutcome(code, b)
+		return limitOrderBotOrderResponse(ok, oid, emsg)
 	}
-	return 200, map[string]any{"success": true, "data": map[string]any{"marketSlug": slug, "orders": results}, "logs": []any{}}
+	upRes := place(upTok)
+	downRes := place(downTok)
+	upOk, _ := upRes["success"].(bool)
+	downOk, _ := downRes["success"].(bool)
+	marketErr := ""
+	if !upOk && !downOk {
+		uem, _ := upRes["errorMsg"].(string)
+		dem, _ := downRes["errorMsg"].(string)
+		marketErr = fmt.Sprintf("up: %s; down: %s", uem, dem)
+	}
+	title := ""
+	for _, k := range []string{"question", "title"} {
+		if s, ok := m[k].(string); ok && strings.TrimSpace(s) != "" {
+			title = strings.TrimSpace(s)
+			break
+		}
+	}
+	startRFC3339 := time.Unix(int64(next), 0).UTC().Format(time.RFC3339)
+	market := map[string]any{
+		"marketSlug":      slug,
+		"marketStartTime": startRFC3339,
+		"targetTimestamp": next,
+		"ordersPlaced": map[string]any{
+			"up":   upRes,
+			"down": downRes,
+		},
+	}
+	if title != "" {
+		market["marketTitle"] = title
+	}
+	if marketErr != "" {
+		market["error"] = marketErr
+	}
+	return 200, map[string]any{
+		"success": true,
+		"data": map[string]any{
+			"asset":        asset,
+			"pricePercent": pricePct,
+			"sizeUsd":      sizeUsd,
+			"ladderMode":   false,
+			"market":       market,
+		},
+		"logs": []any{},
+	}
 }
 
 func errString(e error) string {
