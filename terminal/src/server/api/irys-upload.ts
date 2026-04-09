@@ -1,148 +1,106 @@
-import { Uploader } from "@irys/upload";
-import { Solana } from "@irys/upload-solana";
-import { 
-  validateIrysConfig, 
-  getGatewayUrl,
-} from "@/lib/irys";
-import type { IrysCombinedUploadPayload } from "@/types/agentic";
+import {
+  getIrysUploadServiceBaseURL,
+  validateIrysUploadProxyConfig,
+} from "@/server/lib/irys-config";
 
 /**
- * Get configured Irys uploader based on environment
- */
-async function getIrysUploader() {
-  const environment = process.env.IRYS_CHAIN_ENVIRONMENT as "mainnet" | "devnet";
-  const privateKey = process.env.IRYS_SOLANA_PRIVATE_KEY!;
-  const rpcUrl = process.env.IRYS_SOLANA_RPC_URL;
-
-  if (environment === "devnet") {
-    // Devnet requires RPC URL
-    const irysUploader = await Uploader(Solana)
-      .withWallet(privateKey)
-      .withRpc(rpcUrl!)
-      .devnet();
-    return { uploader: irysUploader, environment };
-  } else {
-    // Mainnet configuration
-    const irysUploader = await Uploader(Solana)
-      .withWallet(privateKey);
-    return { uploader: irysUploader, environment };
-  }
-}
-
-/**
- * POST /api/irys-upload
- * 
- * Uploads combined agent analysis data to Irys chain for permanent, verifiable storage.
- * 
- * Request body: IrysCombinedUploadPayload
- * Response: IrysUploadResult
+ * POST /api/irys-upload — proxies to the Go irys-upload service (Solana + Irys).
  */
 export async function POST(request: Request): Promise<Response> {
-  const startTime = Date.now();
-  
-  try {
-    // Validate environment configuration
-    const configValidation = validateIrysConfig();
-    if (!configValidation.valid) {
-      console.error("[Irys Upload] Configuration error:", configValidation.error);
-      return Response.json(
-        {
-          success: false,
-          error: `Irys configuration error: ${configValidation.error}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    // Parse request body
-    const payload: IrysCombinedUploadPayload = await request.json();
-
-    // Validate payload
-    if (!payload.requestId) {
-      return Response.json(
-        { success: false, error: "Missing required field: requestId" },
-        { status: 400 }
-      );
-    }
-    if (!payload.agentsData || payload.agentsData.length === 0) {
-      return Response.json(
-        { success: false, error: "Missing required field: agentsData" },
-        { status: 400 }
-      );
-    }
-
-    console.log(`[Irys Upload] Starting upload for request ${payload.requestId}`);
-    console.log(`[Irys Upload] Agents count: ${payload.agentsData.length}`);
-
-    // Get Irys uploader
-    const { uploader, environment } = await getIrysUploader();
-
-    // Prepare data for upload
-    const dataToUpload = JSON.stringify(payload, null, 2);
-
-    console.log(`[Irys Upload] Uploading ${dataToUpload.length} bytes to ${environment}`);
-
-    // Build agent names for tags
-    const agentNames = payload.agentsData.map(a => a.name).join(', ');
-
-    // Upload to Irys
-    const receipt = await uploader.upload(dataToUpload, {
-      tags: [
-        { name: "Content-Type", value: "application/json" },
-        { name: "App-Name", value: "PredictOS" },
-        { name: "App-Version", value: "1.0.0" },
-        { name: "Request-Id", value: payload.requestId },
-        { name: "PM-Type", value: payload.pmType },
-        { name: "Event-Identifier", value: payload.eventIdentifier },
-        { name: "Analysis-Mode", value: payload.analysisMode },
-        { name: "Agents-Count", value: payload.agentsData.length.toString() },
-        { name: "Agents", value: agentNames.substring(0, 100) }, // Limit tag length
-        { name: "Schema-Version", value: payload.schemaVersion },
-        { name: "Environment", value: environment },
-      ],
-    });
-
-    const processingTime = Date.now() - startTime;
-    const gatewayUrl = getGatewayUrl(receipt.id);
-
-    console.log(`[Irys Upload] Success! Transaction ID: ${receipt.id}`);
-    console.log(`[Irys Upload] Gateway URL: ${gatewayUrl}`);
-    console.log(`[Irys Upload] Processing time: ${processingTime}ms`);
-
-    return Response.json({
-      success: true,
-      transactionId: receipt.id,
-      gatewayUrl,
-      environment,
-    });
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error during upload";
-    console.error("[Irys Upload] Error:", error);
-    
+  const configValidation = validateIrysUploadProxyConfig();
+  if (!configValidation.valid) {
+    console.error("[Irys Upload] Configuration error:", configValidation.error);
     return Response.json(
       {
         success: false,
-        error: errorMessage,
+        error: `Irys configuration error: ${configValidation.error}`,
       },
       { status: 500 }
     );
   }
-}
 
-/**
- * GET /api/irys-upload
- * 
- * Returns information about the Irys configuration status (without sensitive data)
- */
-export async function GET(_request: Request): Promise<Response> {
-  const configValidation = validateIrysConfig();
-  const environment = process.env.IRYS_CHAIN_ENVIRONMENT;
-  
-  return Response.json({
-    configured: configValidation.valid,
-    environment: environment || "not set",
-    error: configValidation.error,
+  const base = getIrysUploadServiceBaseURL()!;
+  let payload: {
+    requestId?: string;
+    agentsData?: unknown[];
+  };
+  try {
+    payload = await request.json();
+  } catch {
+    return Response.json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  if (!payload.requestId) {
+    return Response.json(
+      { success: false, error: "Missing required field: requestId" },
+      { status: 400 }
+    );
+  }
+  if (!payload.agentsData || payload.agentsData.length === 0) {
+    return Response.json(
+      { success: false, error: "Missing required field: agentsData" },
+      { status: 400 }
+    );
+  }
+
+  const bodyText = JSON.stringify(payload);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${base}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: bodyText,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown network error";
+    console.error("[Irys Upload] Upstream unreachable:", msg);
+    return Response.json(
+      {
+        success: false,
+        error: `Irys upload service unreachable (${msg}). Is mm/irys-upload running?`,
+      },
+      { status: 503 }
+    );
+  }
+
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { "Content-Type": "application/json" },
   });
 }
 
+/**
+ * GET /api/irys-upload — proxies status from the Go service.
+ */
+export async function GET(_request: Request): Promise<Response> {
+  const configValidation = validateIrysUploadProxyConfig();
+  if (!configValidation.valid) {
+    return Response.json({
+      configured: false,
+      environment: "not set",
+      error: configValidation.error,
+    });
+  }
+
+  const base = getIrysUploadServiceBaseURL()!;
+  try {
+    const upstream = await fetch(`${base}/status`);
+    const text = await upstream.text();
+    return new Response(text, {
+      status: upstream.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown network error";
+    return Response.json({
+      configured: false,
+      environment: "not set",
+      error: `Irys upload service unreachable: ${msg}`,
+    });
+  }
+}

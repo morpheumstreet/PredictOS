@@ -111,25 +111,20 @@ When you enable Verifiable Agents, the following data is permanently stored on I
 
 ### Environment Variables
 
-Add these to your `terminal/.env` file:
+**Terminal (Bun)** — in `terminal/.env`:
 
 ```env
-# =========================================================================================
-# IRYS CONFIGURATION (for Verifiable Agent Analysis)
-# =========================================================================================
+# Base URL of the Go upload service (see mm/irys-upload/README.md)
+IRYS_UPLOAD_SERVICE_URL=http://127.0.0.1:8091
+```
 
-# Irys chain environment: "mainnet" or "devnet"
-# - mainnet: Uploads are paid with real SOL tokens, data is permanent
-# - devnet: Uploads use free faucet tokens, data is deleted after ~60 days
+**Go upload service** — set these in the environment of `mm/irys-upload` (same file is fine if you export vars before starting both processes):
+
+```env
 IRYS_CHAIN_ENVIRONMENT=devnet
-
-# Solana private key (base58 encoded) for signing Irys uploads
-# Generate with: solana-keygen new --no-passphrase
 IRYS_SOLANA_PRIVATE_KEY=your_solana_private_key_here
-
-# Solana RPC URL (required for devnet, optional for mainnet)
-# Devnet options: https://api.devnet.solana.com or https://rpc.ankr.com/solana_devnet
 IRYS_SOLANA_RPC_URL=https://api.devnet.solana.com
+# optional: PORT=8091
 ```
 
 ### Devnet vs Mainnet
@@ -226,7 +221,8 @@ flowchart TB
     end
     
     CB --> API["⚡ /api/irys-upload"]
-    API --> IRYS[("🛡️ Irys Blockchain")]
+    API --> GoSvc["Go irys-upload"]
+    GoSvc --> IRYS[("🛡️ Irys Blockchain")]
     
     style AMA fill:#1a1a2e,stroke:#4a9eff,stroke-width:2px
     style Agents fill:#16213e,stroke:#4a9eff,stroke-width:1px
@@ -236,6 +232,7 @@ flowchart TB
     style MA fill:#1a1a40,stroke:#00d9ff
     style CB fill:#2d2d44,stroke:#ffd700
     style API fill:#1e3a5f,stroke:#4ade80
+    style GoSvc fill:#2d3748,stroke:#a0aec0
     style IRYS fill:#0d7377,stroke:#14ffec,stroke-width:3px
 ```
 
@@ -243,37 +240,32 @@ flowchart TB
 
 | File | Purpose |
 |------|---------|
-| `terminal/src/lib/irys.ts` | Utility functions for formatting upload data |
-| `terminal/src/app/api/irys-upload/route.ts` | API route handling Irys uploads |
+| `terminal/src/lib/irys-upload-client.ts` | Browser-safe helpers to build upload payloads |
+| `terminal/src/server/lib/irys-config.ts` | Validates `IRYS_UPLOAD_SERVICE_URL` for the Bun proxy |
+| `terminal/src/server/api/irys-upload.ts` | Proxies `GET`/`POST` `/api/irys-upload` to the Go service |
 | `terminal/src/types/agentic.ts` | TypeScript types for Irys data structures |
+| `mm/irys-upload/` | Go HTTP service: Solana-funded Irys uploads (`POST /upload`, `GET /status`) |
 
 ### Dependencies
 
-The Verifiable Agents feature uses these npm packages:
-
-```json
-{
-  "@irys/upload": "^x.x.x",
-  "@irys/upload-solana": "^x.x.x"
-}
-```
-
-These are automatically installed when you run `npm install` in the terminal directory.
+- **Terminal:** no `@irys/*` npm packages; only `IRYS_UPLOAD_SERVICE_URL` plus the usual `bun install`.
+- **Upload path:** Go module `mm/irys-upload` (see [mm/irys-upload/README.md](../../mm/irys-upload/README.md)) using community Solana+Irys helpers.
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"IRYS_CHAIN_ENVIRONMENT is not set"**
-- Ensure you've added the environment variable to `terminal/.env`
-- Restart the development server after adding env vars
+**"IRYS_UPLOAD_SERVICE_URL is not set or invalid"**
+- Add `IRYS_UPLOAD_SERVICE_URL=http://127.0.0.1:8091` (or your deployed URL) to `terminal/.env`
+- Restart the Bun server after changing env vars
 
-**"IRYS_SOLANA_PRIVATE_KEY is not set"**
-- Add your Solana private key in base58 format
-- For devnet, generate a new key with `solana-keygen`
+**"Irys upload service unreachable"**
+- Start the Go service: `cd mm/irys-upload && go run ./cmd/irys-upload`
+- Ensure `PORT` on the Go process matches the URL port (default `8091`)
 
-**"IRYS_SOLANA_RPC_URL is required for devnet"**
-- Add `IRYS_SOLANA_RPC_URL=https://api.devnet.solana.com` to your `.env`
+**Go service: `IRYS_CHAIN_ENVIRONMENT` / `IRYS_SOLANA_PRIVATE_KEY` / RPC errors**
+- Those variables apply to **`mm/irys-upload`**, not the Bun server
+- For devnet, set `IRYS_SOLANA_RPC_URL=https://api.devnet.solana.com` in the Go process environment
 
 **Upload fails with insufficient funds**
 - For devnet: Airdrop more SOL to your wallet

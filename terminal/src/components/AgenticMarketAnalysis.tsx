@@ -44,7 +44,11 @@ import type {
 import type { X402SellerInfo, CallSellerResponse } from "@/types/x402";
 import { DEFAULT_X402_NETWORK } from "@/types/x402";
 import X402SellerModal from "./X402SellerModal";
-import { generateRequestId, formatCombinedAnalysisForUpload, type IrysUploadResult } from "@/lib/irys";
+import {
+  generateRequestId,
+  formatCombinedAnalysisForUpload,
+  type IrysUploadResult,
+} from "@/lib/irys-upload-client";
 import type { PolyfactualResearchResponse } from "@/types/polyfactual";
 import AnalysisOutput from "./AnalysisOutput";
 import AggregatedAnalysisOutput from "./AggregatedAnalysisOutput";

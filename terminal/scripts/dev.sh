@@ -10,4 +10,6 @@ TW_PID=$!
 bun build ./src/client/main.tsx --outdir=./public/assets --target=browser --sourcemap=external --watch &
 BD_PID=$!
 trap 'kill "$TW_PID" "$BD_PID" 2>/dev/null; exit 0' EXIT INT TERM
+# Verifiable Irys uploads: set IRYS_UPLOAD_SERVICE_URL and run the Go service in another shell:
+#   cd mm/irys-upload && go run ./cmd/irys-upload
 exec bun --hot ./server.ts
