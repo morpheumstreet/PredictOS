@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,6 +89,40 @@ func TestApplyPolymarketEnv(t *testing.T) {
 	if p2.BuilderAPIKey != "bkey" {
 		t.Fatal("empty yaml field should still take env")
 	}
+
+	t.Setenv("POLYGON_RPC_URLS", "https://rpc.a.example, https://rpc.b.example ")
+	p3 := PolymarketCfg{}
+	applyPolymarketEnv(&p3)
+	if len(p3.PolygonRPCURLs) != 2 || p3.PolygonRPCURLs[0] != "https://rpc.a.example" {
+		t.Fatalf("polygon rpcs: %v", p3.PolygonRPCURLs)
+	}
+	t.Setenv("POLYGON_RPC_URLS", "")
+	t.Setenv("POLYGON_RPC_URL", "https://single.example")
+	p4 := PolymarketCfg{}
+	applyPolymarketEnv(&p4)
+	if len(p4.PolygonRPCURLs) != 1 || p4.PolygonRPCURLs[0] != "https://single.example" {
+		t.Fatalf("POLYGON_RPC_URL: %v", p4.PolygonRPCURLs)
+	}
+	p5 := PolymarketCfg{PolygonRPCURLs: []string{"https://yaml"}}
+	t.Setenv("POLYGON_RPC_URL", "https://ignored.example")
+	applyPolymarketEnv(&p5)
+	if len(p5.PolygonRPCURLs) != 1 || p5.PolygonRPCURLs[0] != "https://yaml" {
+		t.Fatal("yaml polygon list should block POLYGON_RPC_URL")
+	}
+
+	t.Setenv("POLYGON_RPC_CHAINLIST_URL", "https://chainlist.override.example/rpcs.json")
+	p6 := PolymarketCfg{}
+	applyPolymarketEnv(&p6)
+	if p6.PolygonRPCChainlist.URL != "https://chainlist.override.example/rpcs.json" {
+		t.Fatalf("chainlist url: %q", p6.PolygonRPCChainlist.URL)
+	}
+	t.Setenv("POLYGON_RPC_CHAINLIST_URL", "")
+	t.Setenv("POLYGON_RPC_CHAINLIST_DISABLE", "true")
+	p7 := PolymarketCfg{PolygonRPCChainlist: ChainlistPolygonRPCIngestCfg{Enabled: true}}
+	applyPolymarketEnv(&p7)
+	if p7.PolygonRPCChainlist.Enabled {
+		t.Fatal("expected disabled by env")
+	}
 }
 
 func TestLoad_mergesRealYML(t *testing.T) {
@@ -137,6 +174,52 @@ kafka:
 	}
 	if len(r.Kafka.Brokers) != 1 || r.Kafka.Brokers[0] != "127.0.0.1:9092" {
 		t.Fatalf("brokers: %v", r.Kafka.Brokers)
+	}
+	if len(r.Hft.Polymarket.PolygonRPCURLs) != len(DefaultPolygonRPCURLs) {
+		t.Fatalf("polygon rpc defaults: got %d want %d", len(r.Hft.Polymarket.PolygonRPCURLs), len(DefaultPolygonRPCURLs))
+	}
+}
+
+func TestLoad_polygonChainlistIngest(t *testing.T) {
+	const body = `[{"chainId":137,"rpc":[{"url":"https://ingested-a.example"},{"url":"https://ingested-b.example"}]}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	base := filepath.Join(dir, "develop.yaml")
+	yml := fmt.Sprintf(`hft:
+  mode: PAPER
+  polymarket:
+    gamma_url: https://gamma.example
+    chain_id: 137
+    polygon_rpc_chainlist:
+      enabled: true
+      url: %q
+      max_urls: 10
+      timeout_seconds: 5
+    auth:
+      private_key: ""
+  limitless:
+    api_key: ""
+  predict_fun:
+    api_key: ""
+  kalshi_dflow:
+    api_key: ""
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+`, srv.URL)
+	if err := os.WriteFile(base, []byte(yml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Hft.Polymarket.PolygonRPCURLs) != 2 {
+		t.Fatalf("polygon rpc: %v", r.Hft.Polymarket.PolygonRPCURLs)
 	}
 }
 

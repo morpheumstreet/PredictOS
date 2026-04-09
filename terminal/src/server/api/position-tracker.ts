@@ -104,15 +104,23 @@ export async function POST(request: Request) {
       process.env.INTELLIGENCE_EDGE_FUNCTION_POSITION_TRACKER?.trim() ||
       intelligenceApiUrl("polymarket-position-tracker");
 
-    const { response, isRetry } = await callEdgeFunction(
-      url,
-      {},
-      {
-        asset: body.asset.toUpperCase(),
-        marketSlug: body.marketSlug,
-        tokenIds: body.tokenIds,
-      }
-    );
+    const envWallet = process.env.POLYMARKET_PROXY_WALLET_ADDRESS?.trim();
+    const single = body.address?.trim() || envWallet || undefined;
+    const multi = body.addresses?.map((a) => a.trim()).filter(Boolean) ?? [];
+
+    const payload: Record<string, unknown> = {
+      asset: body.asset.toUpperCase(),
+      marketSlug: body.marketSlug,
+      tokenIds: body.tokenIds,
+    };
+    if (multi.length > 0) {
+      payload.addresses = multi;
+    } else if (single) {
+      payload.address = single;
+    }
+    // If no address in payload, tracker/intelligence uses POLYMARKET_PROXY_WALLET_ADDRESS on the Go process.
+
+    const { response, isRetry } = await callEdgeFunction(url, {}, payload);
 
     // Check if response is JSON before parsing
     const contentType = response.headers.get("content-type");

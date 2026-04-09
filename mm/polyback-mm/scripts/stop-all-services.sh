@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-for svc in infrastructure-orchestrator-service executor-service strategy-service ingestor-service analytics-service intelligence-service; do
+for svc in infrastructure-orchestrator-service executor-service strategy-service ingestor-service analytics-service intelligence-service tracker-service; do
   pidfile="logs/${svc}.pid"
   if [[ -f "$pidfile" ]]; then
     pid="$(cat "$pidfile")"

@@ -30,6 +30,14 @@ hft:
       enabled: false
       poll_url: ""
       poll_interval_millis: 60000
+    # Polygon JSON-RPC: ingest HTTPS endpoints from ChainList rpcs.json for chain_id (137), then latency-pick (internal/evmrpc).
+    # Skipped if polygon_rpc_urls is set or POLYGON_RPC_URLS / POLYGON_RPC_URL is set. Disable: POLYGON_RPC_CHAINLIST_DISABLE=true
+    polygon_rpc_chainlist:
+      enabled: true
+      url: https://chainlist.org/rpcs.json
+      max_urls: 64
+      timeout_seconds: 30
+    # Optional explicit list (overrides chainlist ingest when non-empty): polygon_rpc_urls: []
   # Overlays: configs/real.testing.yml (gitignored — copy from real.testing.template.yml) then real.yml merged after this file.
   limitless:
     base_url: ""
@@ -135,6 +143,7 @@ server:
   ingestor_addr: :8083
   infrastructure_addr: :8084
   intelligence_addr: :8085
+  tracker_addr: :8086
 
 infrastructure:
   startup_timeout_seconds: 120

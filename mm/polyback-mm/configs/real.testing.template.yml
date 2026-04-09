@@ -15,6 +15,9 @@
 
 hft:
   polymarket:
+    # Optional: skip ChainList HTTP ingest at startup (defaults come from develop.yaml)
+    # polygon_rpc_chainlist:
+    #   enabled: false
     auth:
       private_key: ""
     relayer_api_key: ""

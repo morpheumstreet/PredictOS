@@ -46,6 +46,8 @@ export type PairStatus =
  * Combined position for a market
  */
 export interface MarketPosition {
+  /** Wallet this snapshot applies to (when returned by tracker) */
+  walletAddress?: string;
   /** Market slug identifier */
   marketSlug: string;
   /** Market title */
@@ -84,11 +86,26 @@ export interface PositionTrackerRequest {
   marketSlug?: string;
   /** Token IDs for the market (optional - required if marketSlug is custom) */
   tokenIds?: TokenIds;
+  /**
+   * Polymarket proxy / EOA to query (0x + 40 hex). Same idea as polymarket-trade-tracker per-request wallet.
+   * Aliases on the backend: user, wallet.
+   */
+  address?: string;
+  /** Batch several wallets for the same market (optional). */
+  addresses?: string[];
 }
 
 /**
  * Response from the position tracker endpoint
  */
+/** One row when batching wallets (multi-wallet tracker response). */
+export interface PositionTrackerWalletRow {
+  address: string;
+  success: boolean;
+  position?: MarketPosition;
+  error?: string;
+}
+
 export interface PositionTrackerResponse {
   /** Whether the request was successful */
   success: boolean;
@@ -96,8 +113,11 @@ export interface PositionTrackerResponse {
   data?: {
     /** Asset checked */
     asset: SupportedAsset;
-    /** Position for the market */
-    position: MarketPosition;
+    /** When a single wallet was requested */
+    walletAddress?: string;
+    position?: MarketPosition;
+    /** When multiple wallets were requested */
+    wallets?: PositionTrackerWalletRow[];
   };
   /** Log entries from the execution */
   logs: BotLogEntry[];

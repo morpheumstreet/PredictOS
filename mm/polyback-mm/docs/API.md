@@ -14,6 +14,7 @@ Ports and bind addresses come from [`configs/develop.yaml`](../configs/develop.y
 | Ingestor         | `:8083`         | Status + WS/Kafka snapshot                |
 | Infrastructure   | `:8084`         | Docker compose orchestration              |
 | Intelligence     | `:8085`         | Agents, get-events, x402, Polymarket helpers |
+| Tracker          | `:8086`         | Polymarket wallet position tracker (Gamma + data-api) |
 
 Override with `POLYBACK_CONFIG` or pass the YAML path as the first argument to each binary.
 
@@ -34,7 +35,19 @@ Whitespace-only `base_url` in YAML is treated as empty and gets the same default
 
 **Related (other YAML sections):** `hft.kalshi_dflow.base_url` → env `DFLOW_BASE_URL` then `DefaultDFlowAPIBaseURL`. `hft.polymarket` gamma / CLOB REST / CLOB WS URLs → defaults in `applyDefaultAPIBaseURLs`. `ingestor.polymarket.data_api_base_url` → `DefaultPolymarketDataAPIBaseURL`. See `internal/config/api_base_defaults.go` for the full list and keep in sync with platform packages.
 
-Other secrets remain **environment-only** on the intelligence process (e.g. `OPENAI_API_KEY`, `XAI_API_KEY`, `X402_*`, `BLOCKRUN_WALLET_KEY`, `POLYMARKET_PROXY_WALLET_ADDRESS`). The PredictOS terminal proxies to this service via `INTELLIGENCE_BASE_URL`.
+**Polygon JSON-RPC (unstable public endpoints):** `hft.polymarket.polygon_rpc_urls` lists HTTPS RPC URLs for chain id **`hft.polymarket.chain_id`** (default **137**). When the list is still empty after YAML + env, **`polygon_rpc_chainlist`** can **ingest** HTTPS endpoints from **`https://chainlist.org/rpcs.json`** (see `hft.polymarket.polygon_rpc_chainlist`: `enabled`, `url`, `max_urls`, `timeout_seconds`; env **`POLYGON_RPC_CHAINLIST_URL`**, **`POLYGON_RPC_CHAINLIST_DISABLE`**). If ingest is off or fails, **`DefaultPolygonRPCURLs`** applies. Env for explicit URLs: **`POLYGON_RPC_URLS`** (comma-separated, replaces the list) or **`POLYGON_RPC_URL`** (single URL if the list is still empty). At runtime, **`internal/evmrpc`** probes endpoints in parallel (same idea as [morpheum-labs/pricefeeding/rpcscan](https://github.com/morpheum-labs/pricefeeding/tree/main/rpcscan): `web3_clientVersion`, lowest latency wins) via **`evmrpc.PickFastestRPC`** / **`evmrpc.DialFastest`**. Use **`evmrpc.Manager`** after **`config.Load`** with **`config.NewPolygonEVMRPCManager(root, refresh)`** for a shared client with TTL refresh and **`Invalidate()`** on errors. For production, prefer a paid provider (Alchemy, Infura, etc.). **Full picture:** [polymarket-tracker-and-rpc.md](../../../docs/operations/polyback-mm/polymarket-tracker-and-rpc.md).
+
+Other secrets remain **environment-only** on the intelligence process (e.g. `OPENAI_API_KEY`, `XAI_API_KEY`, `X402_*`, `BLOCKRUN_WALLET_KEY`). The PredictOS terminal proxies to this service via `INTELLIGENCE_BASE_URL`. Wallet lookups for the position tracker use **per-request** `address` / `addresses` on the tracker API; **`POLYMARKET_PROXY_WALLET_ADDRESS`** is an optional default when the body omits wallets (legacy).
+
+### Tracker (`http://127.0.0.1:8086`)
+
+Dedicated process: **`cmd/tracker`**. Design follows the public-data approach of [polymarket-trade-tracker](https://github.com/leolopez007/polymarket-trade-tracker): **Gamma** for market metadata and token ids, **data-api** for `positions` and `activity` (incl. neg-risk style flows), with the same JSON contract as intelligence’s legacy route.
+
+- **`POST /api/tracker/polymarket-position-tracker`** — aligned with **`POST /api/intelligence/polymarket-position-tracker`**. Body: `asset` (BTC, SOL, ETH, XRP), optional `marketSlug`, optional `tokenIds` `{ "up", "down" }`. **Wallets** (same idea as [polymarket-trade-tracker](https://github.com/leolopez007/polymarket-trade-tracker) per-query address): provide **`address`**, **`user`**, or **`wallet`** (single `0x` + 40 hex), or **`addresses`** / **`wallets`** (string arrays). Deduplicated; max 32 per request. If none are sent, **`POLYMARKET_PROXY_WALLET_ADDRESS`** is used when set. **Single wallet** response: `{ data: { asset, walletAddress, position } }`. **Multiple wallets**: `{ data: { asset, wallets: [ { address, success, position? | error? } ] } }`. Uses `hft.polymarket.gamma_url` and `ingestor.polymarket.data_api_base_url` from config (defaults in `internal/config/api_base_defaults.go`).
+
+Point the terminal at this service with a full URL, e.g. `INTELLIGENCE_EDGE_FUNCTION_POSITION_TRACKER=http://127.0.0.1:8086/api/tracker/polymarket-position-tracker`, or keep using intelligence (it delegates to the same `internal/tracker` implementation).
+
+**Implementation layout (SOLID / DRY):** `internal/tracker/port` defines `PolymarketData` and `GammaMarket`; `dataapi` and `gammaadapter` implement them; `market` resolves slug → condition + CLOB legs; `position` holds pure aggregation (no HTTP); root `tracker` package composes dependencies (`NewService` / `NewServiceWith`) and maps HTTP.
 
 **Note:** This stack does **not** expose a WebSocket API to clients. It connects **outbound** to Polymarket CLOB WebSocket. For streaming, consume **Kafka** (`hft.events.topic`, default `polybot.events`) using the envelope in `internal/hftevents/publisher.go` (`ts`, `source`, `type`, `data`). Event types include `market_ws.tob`, `strategy.gabagool.order`, `executor.order.*`.
 

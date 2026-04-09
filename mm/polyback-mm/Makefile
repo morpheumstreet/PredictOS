@@ -13,6 +13,7 @@ build:
 	go build -o bin/analytics ./cmd/analytics
 	go build -o bin/infrastructure ./cmd/infrastructure
 	go build -o bin/intelligence ./cmd/intelligence
+	go build -o bin/tracker ./cmd/tracker
 
 test:
 	go test ./...

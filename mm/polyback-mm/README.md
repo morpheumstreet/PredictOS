@@ -1,6 +1,6 @@
 # polyback-mm
 
-Go implementation of trading services: executor, strategy, ingestor, analytics, and infrastructure orchestrator. Kafka topics and HTTP routes were aligned with the original Java services for compatibility during migration.
+Go implementation of trading services: executor, strategy, ingestor, analytics, infrastructure orchestrator, intelligence APIs, and Polymarket position tracker. Kafka topics and HTTP routes were aligned with the original Java services for compatibility during migration.
 
 ## Design (SOLID-oriented)
 
@@ -48,7 +48,7 @@ bash scripts/start-all-services.sh
 bash scripts/stop-all-services.sh
 ```
 
-Ports match the historical polybot layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`, intelligence `8085`.
+Ports match the historical polybot layout: executor `8080`, strategy `8081`, analytics `8082`, ingestor `8083`, infrastructure `8084`, intelligence `8085`, tracker `8086`.
 
 ## Research (Python)
 

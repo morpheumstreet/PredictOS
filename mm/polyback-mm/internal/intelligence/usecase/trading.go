@@ -8,14 +8,13 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/config"
 	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/platforms/polymarket/gamma"
+	"github.com/profitlock/PredictOS/mm/polyback-mm/internal/tracker"
 	"github.com/shopspring/decimal"
 )
 
@@ -100,12 +99,12 @@ func (t *Trading) placeFromMapperParams(op map[string]any) (int, map[string]any)
 	tickDec, _ := decimal.NewFromString(tick)
 	negP := neg
 	req := map[string]any{
-		"tokenId": tok,
-		"side":    "BUY",
-		"price":   decimal.NewFromFloat(price).StringFixed(4),
-		"size":    decimal.NewFromFloat(math.Floor(size)).StringFixed(0),
+		"tokenId":  tok,
+		"side":     "BUY",
+		"price":    decimal.NewFromFloat(price).StringFixed(4),
+		"size":     decimal.NewFromFloat(math.Floor(size)).StringFixed(0),
 		"tickSize": tickDec.String(),
-		"negRisk": &negP,
+		"negRisk":  &negP,
 	}
 	return t.postLimitAndShape(req)
 }
@@ -625,77 +624,7 @@ func errString(e error) string {
 	return e.Error()
 }
 
-// PositionTracker uses Gamma + data-api (public) for wallet positions.
+// PositionTracker delegates to the shared tracker service (same implementation as cmd/tracker).
 func (t *Trading) PositionTracker(ctx context.Context, body []byte) (int, map[string]any) {
-	var req map[string]any
-	_ = json.Unmarshal(body, &req)
-	asset, _ := req["asset"].(string)
-	asset = strings.ToUpper(strings.TrimSpace(asset))
-	if _, ok := assetSlugPrefix[asset]; !ok {
-		return 200, map[string]any{"success": false, "error": "Invalid asset", "logs": []any{}}
-	}
-	addr := strings.TrimSpace(os.Getenv("POLYMARKET_PROXY_WALLET_ADDRESS"))
-	if addr == "" {
-		return 500, map[string]any{"success": false, "error": "POLYMARKET_PROXY_WALLET_ADDRESS not set", "logs": []any{}}
-	}
-	ts := time.Now().Unix()
-	block := int(math.Floor(float64(ts)/900) * 900)
-	slug, _ := req["marketSlug"].(string)
-	if slug == "" {
-		slug = assetSlugPrefix[asset] + fmt.Sprintf("%d", block)
-	}
-	gammaURL := strings.TrimSpace(t.root.Hft.Polymarket.GammaURL)
-	if gammaURL == "" {
-		gammaURL = "https://gamma-api.polymarket.com"
-	}
-	gc := gamma.New(gammaURL)
-	raw, err := gc.MarketBySlug(slug)
-	if err != nil {
-		return 200, map[string]any{"success": false, "error": "Market not found - may not be created yet", "logs": []any{}}
-	}
-	var m map[string]any
-	_ = json.Unmarshal(raw, &m)
-	clob, _ := m["clobTokenIds"].(string)
-	var ids []string
-	_ = json.Unmarshal([]byte(clob), &ids)
-	if len(ids) < 2 {
-		return 200, map[string]any{"success": false, "error": "tokens", "logs": []any{}}
-	}
-	u := fmt.Sprintf("https://data-api.polymarket.com/positions?user=%s&sizeThreshold=0", url.QueryEscape(addr))
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return 500, map[string]any{"success": false, "error": err.Error()}
-	}
-	resp, err := t.httpClient().Do(r)
-	if err != nil {
-		return 502, map[string]any{"success": false, "error": err.Error()}
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
-	var positions []map[string]any
-	_ = json.Unmarshal(b, &positions)
-	up, down := ids[0], ids[1]
-	var upSz, downSz float64
-	for _, p := range positions {
-		aid, _ := p["asset"].(string)
-		sz, _ := p["size"].(float64)
-		if aid == up {
-			upSz = sz
-		}
-		if aid == down {
-			downSz = sz
-		}
-	}
-	return 200, map[string]any{
-		"success": true,
-		"data": map[string]any{
-			"asset": asset,
-			"position": map[string]any{
-				"marketSlug": slug,
-				"upShares":   upSz,
-				"downShares": downSz,
-			},
-		},
-		"logs": []any{},
-	}
+	return tracker.NewService(t.root, t.httpClient()).PolymarketPositionTracker(ctx, body)
 }

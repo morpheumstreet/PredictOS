@@ -113,6 +113,21 @@ type PolymarketCfg struct {
 	BuilderSecret     string       `yaml:"builder_secret"`
 	BuilderPassphrase string       `yaml:"builder_passphrase"`
 	EventFeed         EventFeedCfg `yaml:"event_feed"`
+	// PolygonRPCChainlist fetches https://chainlist.org/rpcs.json (or URL below) when polygon_rpc_urls is still empty after YAML+env.
+	PolygonRPCChainlist ChainlistPolygonRPCIngestCfg `yaml:"polygon_rpc_chainlist"`
+	// PolygonRPCURLs lists JSON-RPC HTTPS endpoints. Probed in parallel; fastest wins (internal/evmrpc).
+	// Env: POLYGON_RPC_URLS replaces list; POLYGON_RPC_URL single URL if list empty. POLYGON_RPC_CHAINLIST_URL overrides ingest URL;
+	// POLYGON_RPC_CHAINLIST_DISABLE=1|true skips chainlist fetch.
+	// When still empty, DefaultPolygonRPCURLs applies (see api_base_defaults.go).
+	PolygonRPCURLs []string `yaml:"polygon_rpc_urls"`
+}
+
+// ChainlistPolygonRPCIngestCfg loads ChainList-format rpcs.json (see https://chainlist.org/rpcs.json).
+type ChainlistPolygonRPCIngestCfg struct {
+	Enabled        bool   `yaml:"enabled"`
+	URL            string `yaml:"url"`             // default https://chainlist.org/rpcs.json when empty
+	MaxURLs        int    `yaml:"max_urls"`        // cap HTTPS endpoints; 0 → evmrpc.DefaultChainlistHTTPSCap
+	TimeoutSeconds int    `yaml:"timeout_seconds"` // HTTP fetch + parse budget; 0 → DefaultPolygonRPCChainlistTimeoutSeconds
 }
 
 // EventFeedCfg optional HTTP poll; body hash change triggers OnAlert in strategy (cancel-all).
@@ -243,14 +258,16 @@ type ServerCfg struct {
 	// PublicAPIBaseURL is the canonical HTTP base for browsers and the terminal (no trailing path).
 	PublicAPIBaseURL string `yaml:"public_api_base_url"`
 	// ClientConfigEnabled when false disables GET /api/v1/config/client on this process. Nil/absent means enabled.
-	ClientConfigEnabled *bool `yaml:"client_config_enabled"`
+	ClientConfigEnabled *bool  `yaml:"client_config_enabled"`
 	ExecutorAddr        string `yaml:"executor_addr"`
 	StrategyAddr        string `yaml:"strategy_addr"`
 	AnalyticsAddr       string `yaml:"analytics_addr"`
 	IngestorAddr        string `yaml:"ingestor_addr"`
-	InfrastructureAddr string `yaml:"infrastructure_addr"`
+	InfrastructureAddr  string `yaml:"infrastructure_addr"`
 	// IntelligenceAddr is the listen address for the Polyback Intelligence HTTP service (agents, proxies).
 	IntelligenceAddr string `yaml:"intelligence_addr"`
+	// TrackerAddr is the listen address for the Polymarket wallet / position tracker HTTP service (data-api + Gamma).
+	TrackerAddr string `yaml:"tracker_addr"`
 }
 
 type InfraRoot struct {
@@ -318,6 +335,8 @@ func Load(path string) (*Root, error) {
 	applyKalshiDFlowEnv(&r.Hft.KalshiDFlow)
 	applyIntelligenceEnv(&r.Intelligence)
 	applyDefaultAPIBaseURLs(&r)
+	applyPolygonRPCChainlistIngest(&r)
+	applyDefaultPolygonRPCs(&r.Hft.Polymarket)
 	normalizeHftExecutorBaseURLFromPublicAPI(&r)
 	return &r, nil
 }
@@ -346,6 +365,28 @@ func applyPolymarketEnv(p *PolymarketCfg) {
 	if p.BuilderPassphrase == "" {
 		p.BuilderPassphrase = os.Getenv("POLY_BUILDER_PASSPHRASE")
 	}
+	if v := strings.TrimSpace(os.Getenv("POLYGON_RPC_URLS")); v != "" {
+		p.PolygonRPCURLs = splitCommaRPCURLs(v)
+	} else if v := strings.TrimSpace(os.Getenv("POLYGON_RPC_URL")); v != "" && len(nonEmptyTrimmedStrings(p.PolygonRPCURLs)) == 0 {
+		p.PolygonRPCURLs = []string{v}
+	}
+	if v := strings.TrimSpace(os.Getenv("POLYGON_RPC_CHAINLIST_URL")); v != "" {
+		p.PolygonRPCChainlist.URL = v
+	}
+	if v := strings.TrimSpace(strings.ToLower(os.Getenv("POLYGON_RPC_CHAINLIST_DISABLE"))); v == "1" || v == "true" || v == "yes" {
+		p.PolygonRPCChainlist.Enabled = false
+	}
+}
+
+func splitCommaRPCURLs(s string) []string {
+	parts := strings.Split(s, ",")
+	var out []string
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func applyLimitlessEnv(l *LimitlessCfg) {

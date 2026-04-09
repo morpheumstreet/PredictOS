@@ -7,6 +7,8 @@ import type { MarketPosition, PositionTrackerResponse, PairStatus } from "@/type
 interface PositionDashboardProps {
   asset: SupportedAsset;
   isActive: boolean;
+  /** When set, sent as `address` to the tracker (polymarket-trade-tracker style per-wallet query). */
+  walletAddress?: string;
   onPositionUpdate?: (position: MarketPosition | null) => void;
 }
 
@@ -60,6 +62,7 @@ const POLL_INTERVAL_MS = 10000; // 10 seconds
 export const PositionDashboard: React.FC<PositionDashboardProps> = ({
   asset,
   isActive,
+  walletAddress,
   onPositionUpdate,
 }) => {
   const [position, setPosition] = useState<MarketPosition | null>(null);
@@ -75,15 +78,23 @@ export const PositionDashboard: React.FC<PositionDashboardProps> = ({
       const response = await fetch("/api/position-tracker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ asset }),
+        body: JSON.stringify({
+          asset,
+          ...(walletAddress?.trim() ? { address: walletAddress.trim() } : {}),
+        }),
       });
 
       const data: PositionTrackerResponse = await response.json();
 
       if (data.success && data.data) {
-        setPosition(data.data.position);
+        let next: MarketPosition | null = data.data.position ?? null;
+        if (!next && data.data.wallets?.length) {
+          const row = data.data.wallets.find((w) => w.success && w.position);
+          next = row?.position ?? null;
+        }
+        setPosition(next);
         setLastUpdated(new Date());
-        onPositionUpdate?.(data.data.position);
+        onPositionUpdate?.(next);
       } else {
         setError(data.error || "Failed to fetch position");
         setPosition(null);
@@ -97,7 +108,7 @@ export const PositionDashboard: React.FC<PositionDashboardProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [asset, onPositionUpdate]);
+  }, [asset, walletAddress, onPositionUpdate]);
 
   // Fetch position on mount and when active
   useEffect(() => {
